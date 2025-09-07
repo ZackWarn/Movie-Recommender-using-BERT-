@@ -1,6 +1,7 @@
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
+
 class MovieRecommendationEngine:
     def __init__(self, bert_processor):
         self.bert_processor = bert_processor
@@ -28,9 +29,9 @@ class MovieRecommendationEngine:
             recommendations.append({
                 'movieId': movie['movieId'],
                 'title': movie['clean_title'],
-                'year': movie['year'],
-                'genres': movie['genres_list'],
-                'avg_rating': movie['avg_rating'],
+                'year': movie.get('year', 'Unknown'),
+                'genres': movie.get('genres_list', []),
+                'avg_rating': movie.get('avg_rating', 0),
                 'similarity_score': float(similarities[idx])
             })
         return recommendations
@@ -59,9 +60,26 @@ class MovieRecommendationEngine:
             results.append({
                 'movieId': movie['movieId'],
                 'title': movie['clean_title'],
-                'year': movie['year'],
-                'genres': movie['genres_list'],
-                'avg_rating': movie['avg_rating'],
+                'year': movie.get('year', 'Unknown'),
+                'genres': movie.get('genres_list', []),
+                'avg_rating': movie.get('avg_rating', 0),
                 'similarity_score': float(similarities[idx])
+            })
+        return results
+
+    def search_movies(self, search_term, top_k=20):
+        """
+        Search movies by matching search_term in cleaned title (case-insensitive).
+        Returns up to top_k matching movies with basic info.
+        """
+        matches = self.movies[self.movies['clean_title'].str.contains(search_term, case=False, na=False)]
+        results = []
+        for _, movie in matches.head(top_k).iterrows():
+            results.append({
+                'movieId': movie['movieId'],
+                'title': movie['clean_title'],
+                'year': movie.get('year', 'Unknown'),
+                'genres': movie.get('genres_list', []),
+                'avg_rating': movie.get('avg_rating', 0),
             })
         return results
