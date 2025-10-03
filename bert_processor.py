@@ -4,6 +4,7 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import pickle
+import os
 
 class MovieBERTProcessor:
     def __init__(self, model_name='all-MiniLM-L6-v2'):
@@ -64,14 +65,31 @@ class MovieBERTProcessor:
             'embeddings': self.movie_embeddings,
             'movies_data': self.movies_data
         }
-        with open(filepath, 'wb') as f:
+        # Resolve path relative to this file if a relative path is provided
+        resolved_path = (
+            filepath if os.path.isabs(filepath)
+            else os.path.join(os.path.dirname(os.path.abspath(__file__)), filepath)
+        )
+        with open(resolved_path, 'wb') as f:
             pickle.dump(data, f)
-        print(f"Embeddings saved to {filepath}")
+        print(f"Embeddings saved to {resolved_path}")
     
     def load_embeddings(self, filepath='movie_embeddings.pkl'):
-        """Load pre-computed embeddings"""
-        with open(filepath, 'rb') as f:
+        """Load pre-computed embeddings
+        Looks for file at absolute path if provided; otherwise resolves relative to this file's directory.
+        """
+        # Try absolute path, otherwise resolve relative to this file's directory
+        candidate_path = filepath if os.path.isabs(filepath) else os.path.join(os.path.dirname(os.path.abspath(__file__)), filepath)
+        if not os.path.exists(candidate_path):
+            # Fallback to current working directory if still not found
+            alt_path = os.path.abspath(filepath)
+            if os.path.exists(alt_path):
+                candidate_path = alt_path
+            else:
+                raise FileNotFoundError(f"Embeddings file not found at '{filepath}' or '{candidate_path}'")
+
+        with open(candidate_path, 'rb') as f:
             data = pickle.load(f)
         self.movie_embeddings = data['embeddings']
         self.movies_data = data['movies_data']
-        print("Embeddings loaded successfully!")
+        print(f"Embeddings loaded successfully from {candidate_path}!")
