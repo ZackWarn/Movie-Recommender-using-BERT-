@@ -49,7 +49,7 @@ def create_sample_dataset():
             'Gladiator (2000)',
             'Braveheart (1995)',
             'Saving Private Ryan (1998)',
-            'Schindler\'s List (1993)',
+            "Schindler's List (1993)",
             'The Green Mile (1999)',
             'Terminator 2: Judgment Day (1991)',
             'Alien (1979)',

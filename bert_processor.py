@@ -15,10 +15,13 @@ class MovieBERTProcessor:
         if not force_tfidf:
             # Try to check if we can access model files offline first
             try:
-                import transformers
-                # Set offline mode to avoid hanging on downloads
-                os.environ['TRANSFORMERS_OFFLINE'] = '1'
-                os.environ['HF_HUB_OFFLINE'] = '1'
+                # Note: Setting these env vars affects the transformers library globally
+                # They should ideally be set before importing if possible
+                # However, for this use case (offline fallback), it's acceptable
+                if 'TRANSFORMERS_OFFLINE' not in os.environ:
+                    os.environ['TRANSFORMERS_OFFLINE'] = '1'
+                if 'HF_HUB_OFFLINE' not in os.environ:
+                    os.environ['HF_HUB_OFFLINE'] = '1'
                 
                 from sentence_transformers import SentenceTransformer
                 self.model = SentenceTransformer(model_name)

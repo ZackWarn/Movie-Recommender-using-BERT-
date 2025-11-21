@@ -16,7 +16,7 @@ echo "📦 Checking dependencies..."
 if ! python3 -c "import streamlit" &> /dev/null; then
     echo "⚠️  Dependencies not installed"
     echo "📥 Installing dependencies..."
-    pip install -r requirements.txt
+    python3 -m pip install -r requirements.txt
     if [ $? -ne 0 ]; then
         echo "❌ Failed to install dependencies"
         exit 1

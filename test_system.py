@@ -5,6 +5,7 @@ Test script to verify the Movie Recommender System is working correctly
 
 import sys
 import os
+import traceback
 
 def test_imports():
     """Test that all required imports work"""
@@ -97,7 +98,6 @@ def test_recommendation_engine():
         
     except Exception as e:
         print(f"  ❌ Error: {e}")
-        import traceback
         traceback.print_exc()
         return False
 
