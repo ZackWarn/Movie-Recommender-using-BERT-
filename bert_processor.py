@@ -90,11 +90,17 @@ class MovieBERTProcessor:
         return self.movie_embeddings
     
     def save_embeddings(self, filepath='movie_embeddings.pkl'):
-        """Save embeddings and movie data"""
+        """Save embeddings, movie data, and the model (if TF-IDF)"""
         data = {
             'embeddings': self.movie_embeddings,
-            'movies_data': self.movies_data
+            'movies_data': self.movies_data,
+            'use_tfidf': self.use_tfidf
         }
+        
+        # Save the fitted TF-IDF model if using TF-IDF
+        if self.use_tfidf:
+            data['tfidf_model'] = self.model
+        
         # Resolve path relative to this file if a relative path is provided
         resolved_path = (
             filepath if os.path.isabs(filepath)
@@ -105,7 +111,7 @@ class MovieBERTProcessor:
         print(f"Embeddings saved to {resolved_path}")
     
     def load_embeddings(self, filepath='movie_embeddings.pkl'):
-        """Load pre-computed embeddings
+        """Load pre-computed embeddings and model
         Looks for file at absolute path if provided; otherwise resolves relative to this file's directory.
         """
         # Try absolute path, otherwise resolve relative to this file's directory
@@ -120,6 +126,18 @@ class MovieBERTProcessor:
 
         with open(candidate_path, 'rb') as f:
             data = pickle.load(f)
+        
         self.movie_embeddings = data['embeddings']
         self.movies_data = data['movies_data']
-        print(f"Embeddings loaded successfully from {candidate_path}!")
+        
+        # Load TF-IDF model if it was saved
+        if 'use_tfidf' in data and data['use_tfidf']:
+            self.use_tfidf = True
+            if 'tfidf_model' in data:
+                self.model = data['tfidf_model']
+                print(f"Embeddings and TF-IDF model loaded successfully from {candidate_path}!")
+            else:
+                print(f"Embeddings loaded from {candidate_path} (TF-IDF model not found, creating new)")
+                self.model = TfidfVectorizer(max_features=384, ngram_range=(1, 2), min_df=1)
+        else:
+            print(f"Embeddings loaded successfully from {candidate_path}!")
