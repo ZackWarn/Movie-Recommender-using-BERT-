@@ -7,7 +7,7 @@ import os
 
 @st.cache_resource
 def load_recommendation_engine():
-    bert_processor = MovieBERTProcessor()
+    bert_processor = MovieBERTProcessor(force_tfidf=True)
     bert_processor.load_embeddings()
     engine = MovieRecommendationEngine(bert_processor, use_imdb=True)
     return engine

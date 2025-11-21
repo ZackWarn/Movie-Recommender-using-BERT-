@@ -12,9 +12,9 @@ def main():
     print("Preparing movie tags...")
     movies = prepare_movie_tags(movies, tags, genome_scores, genome_tags)
     
-    # Step 3: Initialize BERT processor
-    print("Initializing BERT model...")
-    bert_processor = MovieBERTProcessor()
+    # Step 3: Initialize BERT processor (force TF-IDF in offline mode)
+    print("Initializing embedding model...")
+    bert_processor = MovieBERTProcessor(force_tfidf=True)
     
     # Step 4: Generate embeddings
     print("Generating embeddings...")
