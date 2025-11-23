@@ -5,7 +5,7 @@
     region: oregon
     plan: free
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
-    startCommand: gunicorn flask_api:app --bind 0.0.0.0:$PORT --timeout 120 --workers 1
+    startCommand: python -m gunicorn flask_api:app --bind 0.0.0.0:$PORT --timeout 120 --workers 1
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.8
