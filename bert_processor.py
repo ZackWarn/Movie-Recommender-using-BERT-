@@ -75,7 +75,7 @@ class MovieBERTProcessor:
         print(f"Embeddings saved to {resolved_path}")
     
     def load_embeddings(self, filepath='movie_embeddings.pkl'):
-        """Load pre-computed embeddings
+        """Load pre-computed embeddings with memory optimization
         Looks for file at absolute path if provided; otherwise resolves relative to this file's directory.
         """
         # Try absolute path, otherwise resolve relative to this file's directory
@@ -90,6 +90,19 @@ class MovieBERTProcessor:
 
         with open(candidate_path, 'rb') as f:
             data = pickle.load(f)
-        self.movie_embeddings = data['embeddings']
+        
+        # Convert embeddings to float16 to save memory (halves memory usage)
+        self.movie_embeddings = data['embeddings'].astype('float16')
+        
+        # Optimize DataFrame memory usage
         self.movies_data = data['movies_data']
-        print(f"Embeddings loaded successfully from {candidate_path}!")
+        
+        # Convert columns to more memory-efficient types
+        for col in self.movies_data.columns:
+            col_type = self.movies_data[col].dtype
+            if col_type == 'float64':
+                self.movies_data[col] = self.movies_data[col].astype('float32')
+            elif col_type == 'int64':
+                self.movies_data[col] = self.movies_data[col].astype('int32')
+        
+        print(f"Embeddings loaded successfully from {candidate_path} with memory optimization!")
