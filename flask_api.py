@@ -25,14 +25,24 @@ engine = None
 
 
 def get_engine():
-    """Get or create the recommendation engine"""
+    """Get or create the recommendation engine (lazy loading)"""
     global engine
     if engine is None:
         try:
+            logger.info("Initializing recommendation engine...")
             bert_processor = MovieBERTProcessor()
+            logger.info("Loading embeddings...")
             bert_processor.load_embeddings()
+            logger.info("Creating recommendation engine...")
             engine = MovieRecommendationEngine(bert_processor, use_imdb=False)
             logger.info("Recommendation engine initialized successfully")
+            
+            # Log memory usage
+            import psutil
+            import os
+            process = psutil.Process(os.getpid())
+            mem_mb = process.memory_info().rss / 1024 / 1024
+            logger.info(f"Current memory usage: {mem_mb:.2f} MB")
         except Exception as e:
             logger.error(f"Failed to initialize recommendation engine: {e}")
             raise

@@ -5,7 +5,7 @@
     region: oregon
     plan: free
     buildCommand: pip install --upgrade pip && pip install --no-cache-dir gunicorn && pip install --no-cache-dir -r requirements.txt
-    startCommand: gunicorn flask_api:app --bind 0.0.0.0:$PORT --timeout 120 --workers 1
+    startCommand: gunicorn flask_api:app --bind 0.0.0.0:$PORT --timeout 300 --workers 1 --threads 1 --worker-class sync --max-requests 100 --max-requests-jitter 10
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.8
