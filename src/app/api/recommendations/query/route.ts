@@ -17,9 +17,10 @@ export async function POST(req: NextRequest) {
       status: resp.status,
       headers: { "content-type": resp.headers.get("content-type") || "application/json" },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : "Proxy request failed";
     return new Response(
-      JSON.stringify({ error: err?.message || "Proxy request failed" }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { "content-type": "application/json" } }
     );
   }

@@ -1,6 +1,4 @@
 "use client";
-import { useState } from "react";
-import Image from "next/image";
 
 interface MovieCardProps {
   movie: {
@@ -23,19 +21,9 @@ interface MovieCardProps {
 }
 
 export default function MovieCard({ movie, index }: MovieCardProps) {
-  const [imageError, setImageError] = useState(false);
-  
   const displayYear = movie.imdb_year || movie.year || 'N/A';
   const displayGenres = movie.imdb_genres || movie.genres || [];
-  const displayRating = movie.imdb_rating || movie.avg_rating || 0;
-  const ratingCount = movie.imdb_rating_count || 0;
   const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(`${movie.title} ${displayYear !== 'N/A' ? displayYear : ''}`.trim())}`;
-  
-  const formatRuntime = (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
-  };
 
   return (
     <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 border border-white/20">

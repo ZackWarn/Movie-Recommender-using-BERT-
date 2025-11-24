@@ -4,7 +4,7 @@ import { FiSearch } from "react-icons/fi";
 import MovieCard from "../components/MovieCard";
 // Poster grid removed per request
 
-const FilmIcon = (props) => (
+const FilmIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     width="12"      // half of 24
@@ -28,10 +28,27 @@ const FilmIcon = (props) => (
   </svg>
 );
 
+interface MovieType {
+  movieId?: number;
+  title: string;
+  year?: string | number;
+  imdb_year?: string | number;
+  imdb_rating?: number;
+  imdb_rating_count?: number;
+  avg_rating?: number;
+  poster_url?: string;
+  plot?: string;
+  genres?: string[];
+  imdb_genres?: string[];
+  cast?: string[];
+  runtime?: number;
+  similarity_score?: number;
+  imdb_id?: string;
+}
 
 export default function CineMatchHero() {
   const [search, setSearch] = useState("");
-  const [recommendations, setRecommendations] = useState([]);
+  const [recommendations, setRecommendations] = useState<MovieType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   // IMDb posters removed per request

@@ -42,8 +42,28 @@ export async function GET(req: NextRequest) {
 
     const data = await resp.json();
 
+    // Define interface for IMDB API response items
+    interface ImdbItem {
+      image?: { url?: string };
+      poster?: string;
+      poster_url?: string;
+      primaryImage?: string;
+      thumbnails?: Array<{ url?: string }>;
+      id?: string;
+      imdb_id?: string;
+      imdbID?: string;
+      const?: string;
+      title?: string;
+      l?: string;
+      primaryTitle?: string;
+      name?: string;
+      year?: string | number;
+      y?: string | number;
+      startYear?: string | number;
+    }
+
     // Normalize to array of items with poster
-    const items: any[] = Array.isArray(data?.results)
+    const items: ImdbItem[] = Array.isArray(data?.results)
       ? data.results
       : Array.isArray(data)
       ? data
@@ -72,9 +92,10 @@ export async function GET(req: NextRequest) {
       status: 200,
       headers: { "content-type": "application/json" },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : "Unexpected error";
     return new Response(
-      JSON.stringify({ error: err?.message || "Unexpected error" }),
+      JSON.stringify({ error: errorMessage }),
       {
         status: 500,
         headers: { "content-type": "application/json" },
