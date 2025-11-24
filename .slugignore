@@ -1,0 +1,15 @@
+﻿*.md
+!README.md
+.vscode/
+__pycache__/
+*.pyc
+venv/
+node_modules/
+.next/
+test_*.py
+optimization.py
+setup_imdb.py
+app.py
+eval.py
+data_prep.py
+main.py
