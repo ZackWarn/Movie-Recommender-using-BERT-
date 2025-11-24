@@ -12,15 +12,12 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 # Allow CORS from local dev and production domains
+# Using origins="*" to allow all Vercel deployments (preview + production)
 CORS(
     app,
-    origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "https://*.vercel.app",
-        "https://movie-recommender-using-bert.onrender.com",
-    ],
-    supports_credentials=True,
+    origins="*",
+    allow_headers=["Content-Type", "Authorization"],
+    methods=["GET", "POST", "OPTIONS"]
 )
 
 # Global variables for caching
@@ -73,17 +70,19 @@ def _normalize(obj):
 @app.route("/", methods=["GET"])
 def index():
     """Root endpoint - API status"""
-    return jsonify({
-        "service": "Movie Recommendation API",
-        "status": "running",
-        "version": "1.0",
-        "endpoints": {
-            "health": "/api/health",
-            "recommendations": "/api/recommendations/query",
-            "similar": "/api/recommendations/similar",
-            "search": "/api/search"
+    return jsonify(
+        {
+            "service": "Movie Recommendation API",
+            "status": "running",
+            "version": "1.0",
+            "endpoints": {
+                "health": "/api/health",
+                "recommendations": "/api/recommendations/query",
+                "similar": "/api/recommendations/similar",
+                "search": "/api/search",
+            },
         }
-    })
+    )
 
 
 @app.route("/api/health", methods=["GET"])
