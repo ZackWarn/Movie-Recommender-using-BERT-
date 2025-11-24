@@ -11,10 +11,21 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app)
+# Allow CORS from local dev and production domains
+CORS(
+    app,
+    origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://*.vercel.app",
+        "https://movie-recommender-using-bert.onrender.com",
+    ],
+    supports_credentials=True,
+)
 
 # Global variables for caching
 engine = None
+
 
 def get_engine():
     """Get or create the recommendation engine"""
@@ -30,13 +41,14 @@ def get_engine():
             raise
     return engine
 
+
 def _to_native(value):
     """Convert numpy/pandas scalar types to native Python types for JSON serialization."""
     if isinstance(value, (np.integer,)):
         return int(value)
     if isinstance(value, (np.floating,)):
         return float(value)
-    if isinstance(value, (np.bool_ ,)):
+    if isinstance(value, (np.bool_,)):
         return bool(value)
     if value is None:
         return None
@@ -48,6 +60,7 @@ def _to_native(value):
         pass
     return value
 
+
 def _normalize(obj):
     """Recursively normalize dicts/lists to be JSON serializable."""
     if isinstance(obj, dict):
@@ -56,111 +69,120 @@ def _normalize(obj):
         return [_normalize(v) for v in obj]
     return _to_native(obj)
 
-@app.route('/api/health', methods=['GET'])
+
+@app.route("/api/health", methods=["GET"])
 def health_check():
     """Health check endpoint"""
-    return jsonify({
-        'status': 'healthy',
-        'imdb_available': Config.validate_config()
-    })
+    return jsonify({"status": "healthy", "imdb_available": Config.validate_config()})
 
-@app.route('/api/recommendations/query', methods=['POST'])
+
+@app.route("/api/recommendations/query", methods=["POST"])
 def get_recommendations_by_query():
     """Get recommendations based on natural language query"""
     try:
         data = request.get_json()
-        query = data.get('query', '').strip()
-        top_k = data.get('top_k', 10)
-        
+        query = data.get("query", "").strip()
+        top_k = data.get("top_k", 10)
+
         if not query:
-            return jsonify({'error': 'Query is required'}), 400
-        
+            return jsonify({"error": "Query is required"}), 400
+
         engine = get_engine()
-        
+
         # Use local recommendations only (IMDb disabled per request)
         recommendations = engine.recommend_by_query(query, top_k)
-        
-        return jsonify({
-            'success': True,
-            'recommendations': _normalize(recommendations),
-            'count': len(recommendations)
-        })
-        
+
+        return jsonify(
+            {
+                "success": True,
+                "recommendations": _normalize(recommendations),
+                "count": len(recommendations),
+            }
+        )
+
     except Exception as e:
         logger.error(f"Error in query recommendations: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@app.route('/api/recommendations/similar', methods=['POST'])
+
+@app.route("/api/recommendations/similar", methods=["POST"])
 def get_similar_movies():
     """Get similar movies based on movie ID"""
     try:
         data = request.get_json()
-        movie_id = data.get('movie_id')
-        top_k = data.get('top_k', 10)
-        
+        movie_id = data.get("movie_id")
+        top_k = data.get("top_k", 10)
+
         if not movie_id:
-            return jsonify({'error': 'Movie ID is required'}), 400
-        
+            return jsonify({"error": "Movie ID is required"}), 400
+
         engine = get_engine()
-        
+
         # Use local recommendations only (IMDb disabled per request)
         recommendations = engine.recommend_similar_movies(movie_id, top_k)
-        
-        return jsonify({
-            'success': True,
-            'recommendations': _normalize(recommendations),
-            'count': len(recommendations)
-        })
-        
+
+        return jsonify(
+            {
+                "success": True,
+                "recommendations": _normalize(recommendations),
+                "count": len(recommendations),
+            }
+        )
+
     except Exception as e:
         logger.error(f"Error in similar movies: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@app.route('/api/search', methods=['POST'])
+
+@app.route("/api/search", methods=["POST"])
 def search_movies():
     """Search movies by title or keyword"""
     try:
         data = request.get_json()
-        search_term = data.get('search_term', '').strip()
-        top_k = data.get('top_k', 20)
-        
+        search_term = data.get("search_term", "").strip()
+        top_k = data.get("top_k", 20)
+
         if not search_term:
-            return jsonify({'error': 'Search term is required'}), 400
-        
+            return jsonify({"error": "Search term is required"}), 400
+
         engine = get_engine()
-        
+
         # Use local search only (IMDb disabled per request)
         results = engine.search_movies(search_term, top_k)
-        
-        return jsonify({
-            'success': True,
-            'movies': _normalize(results),
-            'count': len(results)
-        })
-        
+
+        return jsonify(
+            {"success": True, "movies": _normalize(results), "count": len(results)}
+        )
+
     except Exception as e:
         logger.error(f"Error in movie search: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@app.route('/api/imdb/search', methods=['POST'])
+
+@app.route("/api/imdb/search", methods=["POST"])
 def search_imdb_movies():
-    return jsonify({'error': 'IMDB features disabled'}), 400
+    return jsonify({"error": "IMDB features disabled"}), 400
 
-@app.route('/api/imdb/trending', methods=['GET'])
+
+@app.route("/api/imdb/trending", methods=["GET"])
 def get_trending_movies():
-    return jsonify({'error': 'IMDB features disabled'}), 400
+    return jsonify({"error": "IMDB features disabled"}), 400
+
 
 @app.errorhandler(404)
 def not_found(error):
-    return jsonify({'error': 'Endpoint not found'}), 404
+    return jsonify({"error": "Endpoint not found"}), 404
+
 
 @app.errorhandler(500)
 def internal_error(error):
-    return jsonify({'error': 'Internal server error'}), 500
+    return jsonify({"error": "Internal server error"}), 500
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # Check configuration
     if not Config.validate_config():
         logger.warning("IMDB API key not configured. Some features will be disabled.")
-    
-    app.run(debug=True, host='0.0.0.0', port=5000)
+
+    # Use debug=False for production-like behavior, avoiding reload issues
+    app.run(debug=False, host="0.0.0.0", port=5000, use_reloader=False)
