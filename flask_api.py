@@ -30,7 +30,8 @@ def get_engine():
     if engine is None:
         try:
             logger.info("Initializing recommendation engine...")
-            bert_processor = MovieBERTProcessor()
+            # Use lazy_load=True to skip loading BERT model initially
+            bert_processor = MovieBERTProcessor(lazy_load=True)
             logger.info("Loading embeddings...")
             bert_processor.load_embeddings()
             logger.info("Creating recommendation engine...")
@@ -38,11 +39,14 @@ def get_engine():
             logger.info("Recommendation engine initialized successfully")
             
             # Log memory usage
-            import psutil
-            import os
-            process = psutil.Process(os.getpid())
-            mem_mb = process.memory_info().rss / 1024 / 1024
-            logger.info(f"Current memory usage: {mem_mb:.2f} MB")
+            try:
+                import psutil
+                import os
+                process = psutil.Process(os.getpid())
+                mem_mb = process.memory_info().rss / 1024 / 1024
+                logger.info(f"Current memory usage: {mem_mb:.2f} MB")
+            except ImportError:
+                logger.warning("psutil not available for memory monitoring")
         except Exception as e:
             logger.error(f"Failed to initialize recommendation engine: {e}")
             raise

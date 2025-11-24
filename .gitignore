@@ -43,7 +43,8 @@ next-env.d.ts
 # .gitignore
 venv/
 __pycache__/
-*.pkl
+# Keep movie_embeddings.pkl for deployment
+# *.pkl
 *.csv
 movies_dataset/
 .history/
