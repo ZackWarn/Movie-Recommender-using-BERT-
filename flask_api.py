@@ -17,7 +17,7 @@ CORS(
     app,
     origins="*",
     allow_headers=["Content-Type", "Authorization"],
-    methods=["GET", "POST", "OPTIONS"]
+    methods=["GET", "POST", "OPTIONS"],
 )
 
 # Global variables for caching
@@ -36,12 +36,21 @@ def get_engine():
             bert_processor.load_embeddings()
             logger.info("Creating recommendation engine...")
             engine = MovieRecommendationEngine(bert_processor, use_imdb=False)
+
+            # Pre-warm the BERT model with a dummy encoding to avoid first-request timeout
+            logger.info("Pre-warming BERT model...")
+            _ = engine.bert_processor.model.encode(
+                ["warmup query"], show_progress_bar=False
+            )
+            logger.info("BERT model ready")
+
             logger.info("Recommendation engine initialized successfully")
-            
+
             # Log memory usage
             try:
                 import psutil
                 import os
+
                 process = psutil.Process(os.getpid())
                 mem_mb = process.memory_info().rss / 1024 / 1024
                 logger.info(f"Current memory usage: {mem_mb:.2f} MB")
