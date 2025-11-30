@@ -21,8 +21,15 @@ class MovieBERTProcessor:
         self.use_external = False
 
         # Only load local model if not lazy loading
-        if not lazy_load:
-            self._model = SentenceTransformer(model_name)
+            if not lazy_load:
+                self._model = SentenceTransformer(model_name)
+                # Optional prewarm to reduce first-query latency
+                try:
+                    from config import Config as _Cfg
+                    if getattr(_Cfg, 'PREWARM_MODEL', False):
+                        _ = self._model.encode(["warmup"], batch_size=1)
+                except Exception:
+                    pass
 
     @property
     def model(self):
@@ -37,7 +44,12 @@ class MovieBERTProcessor:
             texts = [texts]
 
         # Local-only path
-        return self.model.encode(texts)
+            try:
+                from config import Config as _Cfg
+                bs = getattr(_Cfg, 'ENCODING_BATCH_SIZE', 32) or 32
+            except Exception:
+                bs = 32
+            return self.model.encode(texts, batch_size=bs)
 
     def prepare_movie_texts(self, movies_df):
         """Combine movie information into text descriptions"""
@@ -68,7 +80,11 @@ class MovieBERTProcessor:
 
         print(f"Generating embeddings for {len(movie_texts)} movies...")
         # Generate embeddings in batches to manage memory
-        batch_size = 32
+            try:
+                from config import Config as _Cfg
+                batch_size = getattr(_Cfg, 'ENCODING_BATCH_SIZE', 32) or 32
+            except Exception:
+                batch_size = 32
         embeddings = []
 
         for i in range(0, len(movie_texts), batch_size):

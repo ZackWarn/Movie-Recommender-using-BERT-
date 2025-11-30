@@ -13,6 +13,8 @@ class Config:
     # Use a smaller model for faster startup on limited environments
     BERT_MODEL_NAME = "sentence-transformers/paraphrase-MiniLM-L3-v2"
     EMBEDDINGS_FILE = "movie_embeddings.pkl"
+    ENCODING_BATCH_SIZE: int = 64
+    PREWARM_MODEL: bool = True
 
     # Recommendation Configuration
     DEFAULT_TOP_K: int = 10
