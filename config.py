@@ -9,7 +9,8 @@ class Config:
     RAPIDAPI_IMDB_HOST: str = 'imdb8.p.rapidapi.com'
     
     # Model configuration (local-only)
-    BERT_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+    # Use a smaller model for faster startup on limited environments
+    BERT_MODEL_NAME = "sentence-transformers/paraphrase-MiniLM-L3-v2"
     EMBEDDINGS_FILE = "movie_embeddings.pkl"
     
     # Recommendation Configuration
