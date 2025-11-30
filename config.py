@@ -8,14 +8,9 @@ class Config:
     RAPIDAPI_IMDB_KEY: Optional[str] = os.getenv('RAPIDAPI_IMDB_KEY')
     RAPIDAPI_IMDB_HOST: str = 'imdb8.p.rapidapi.com'
     
-    # BERT Model Configuration
-    BERT_MODEL_NAME: str = 'sentence-transformers/all-MiniLM-L6-v2'
-    EMBEDDINGS_FILE: str = 'movie_embeddings.pkl'
-
-    # Hugging Face Inference API (optional - to offload embeddings)
-    HF_API_TOKEN: Optional[str] = os.getenv('HF_API_TOKEN')
-    HF_MODEL_NAME: str = os.getenv('HF_MODEL_NAME', BERT_MODEL_NAME)
-    HF_API_URL: str = os.getenv('HF_API_URL', f"https://api-inference.huggingface.co/pipeline/feature-extraction/{HF_MODEL_NAME}")
+    # Model configuration (local-only)
+    BERT_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+    EMBEDDINGS_FILE = "movie_embeddings.pkl"
     
     # Recommendation Configuration
     DEFAULT_TOP_K: int = 10

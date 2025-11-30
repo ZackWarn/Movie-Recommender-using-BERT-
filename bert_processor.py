@@ -5,7 +5,7 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import pickle
 import os
-import requests
+# External API usage removed to keep local-only encoding
 from typing import List
 from config import Config
 
@@ -16,17 +16,17 @@ class MovieBERTProcessor:
         self._model = None
         self.movie_embeddings = None
         self.movies_data = None
-        # Use external embeddings if HF token is provided
-        self.use_external = bool(Config.HF_API_TOKEN)
-        
-        # Only load local model if not lazy loading and not using external
-        if not lazy_load and not self.use_external:
+        # Always use local model only
+        self.use_external = False
+
+        # Only load local model if not lazy loading
+        if not lazy_load:
             self._model = SentenceTransformer(model_name)
 
     @property
     def model(self):
         """Lazy load model only when needed for encoding queries"""
-        if self._model is None and not self.use_external:
+        if self._model is None:
             self._model = SentenceTransformer(self.model_name)
         return self._model
 
@@ -35,24 +35,8 @@ class MovieBERTProcessor:
         if not isinstance(texts, list):
             texts = [texts]
         
-        if self.use_external and Config.HF_API_TOKEN:
-            headers = {"Authorization": f"Bearer {Config.HF_API_TOKEN}", "Content-Type": "application/json"}
-            embeddings = []
-            for t in texts:
-                try:
-                    resp = requests.post(Config.HF_API_URL, headers=headers, json={"inputs": t, "options": {"wait_for_model": True}})
-                    resp.raise_for_status()
-                    data = resp.json()
-                    # HF may return nested list for feature-extraction; flatten first list
-                    vec = data[0] if isinstance(data, list) and data and isinstance(data[0], list) else data
-                    embeddings.append(np.array(vec, dtype=np.float32))
-                except Exception:
-                    # Fallback to local model if API fails and model is available
-                    vecs = self.model.encode([t])
-                    embeddings.append(np.array(vecs[0], dtype=np.float32))
-            return np.vstack(embeddings)
-        else:
-            return self.model.encode(texts)
+        # Local-only path
+        return self.model.encode(texts)
 
     def prepare_movie_texts(self, movies_df):
         """Combine movie information into text descriptions"""
