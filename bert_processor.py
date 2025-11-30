@@ -5,13 +5,14 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import pickle
 import os
+
 # External API usage removed to keep local-only encoding
 from typing import List
 from config import Config
 
 
 class MovieBERTProcessor:
-    def __init__(self, model_name='all-MiniLM-L6-v2', lazy_load=False):
+    def __init__(self, model_name="all-MiniLM-L6-v2", lazy_load=False):
         self.model_name = model_name
         self._model = None
         self.movie_embeddings = None
@@ -34,7 +35,7 @@ class MovieBERTProcessor:
         """Encode texts into embeddings using either local model or Hugging Face Inference API"""
         if not isinstance(texts, list):
             texts = [texts]
-        
+
         # Local-only path
         return self.model.encode(texts)
 
