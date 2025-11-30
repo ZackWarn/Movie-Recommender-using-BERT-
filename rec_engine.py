@@ -24,8 +24,8 @@ class MovieRecommendationEngine:
                 self.imdb_service = None
 
     def recommend_by_query(self, query, top_k=10):
-        # Encode the query to embedding vector
-        query_embedding = self.bert_processor.model.encode([query])[0]
+        # Encode the query to embedding vector (external HF API if configured)
+        query_embedding = self.bert_processor.encode([query])[0]
         query_embedding = np.array(query_embedding).reshape(1, -1)
 
         embeddings = np.array(self.embeddings)

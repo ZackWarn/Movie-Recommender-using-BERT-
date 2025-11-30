@@ -9,8 +9,13 @@ class Config:
     RAPIDAPI_IMDB_HOST: str = 'imdb8.p.rapidapi.com'
     
     # BERT Model Configuration
-    BERT_MODEL_NAME: str = 'distilbert-base-uncased'
+    BERT_MODEL_NAME: str = 'sentence-transformers/all-MiniLM-L6-v2'
     EMBEDDINGS_FILE: str = 'movie_embeddings.pkl'
+
+    # Hugging Face Inference API (optional - to offload embeddings)
+    HF_API_TOKEN: Optional[str] = os.getenv('HF_API_TOKEN')
+    HF_MODEL_NAME: str = os.getenv('HF_MODEL_NAME', BERT_MODEL_NAME)
+    HF_API_URL: str = os.getenv('HF_API_URL', f"https://api-inference.huggingface.co/pipeline/feature-extraction/{HF_MODEL_NAME}")
     
     # Recommendation Configuration
     DEFAULT_TOP_K: int = 10
@@ -30,10 +35,11 @@ class Config:
     @classmethod
     def validate_config(cls) -> bool:
         """Validate that required configuration is present"""
+        ok = True
         if not cls.RAPIDAPI_IMDB_KEY:
-            print("Warning: RAPIDAPI_IMDB_KEY not set. IMDB features will be disabled.")
-            return False
-        return True
+            print("Warning: RAPIDAPI_IMDB_KEY not set. IMDB features will be limited.")
+            ok = False
+        return ok
     
     @classmethod
     def get_imdb_config(cls) -> dict:
