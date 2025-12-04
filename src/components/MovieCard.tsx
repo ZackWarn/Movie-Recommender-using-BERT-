@@ -64,7 +64,7 @@ export default function MovieCard({ movie, index }: MovieCardProps) {
       {displayGenres.slice(0, 4).map((genre, idx) => (
         <span
           key={idx}
-          className="bg-purple-800/40 text-purple-100 px-1 py-1 rounded-full text-sm"
+          className="inline-block bg-purple-800/40 text-purple-100 px-3 py-1 rounded-full text-sm whitespace-nowrap"
         >
           {genre}
         </span>
