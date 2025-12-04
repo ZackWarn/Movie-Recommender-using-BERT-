@@ -13,15 +13,16 @@ from config import Config
 
 
 class MovieBERTProcessor:
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2", lazy_load: bool = False):
-        self.model_name = model_name
+    def __init__(self, model_name: str = None, lazy_load: bool = False):
+        # Use configured model name if not explicitly provided
+        self.model_name = model_name or Config.BERT_MODEL_NAME
         self._model = None
         self.movie_embeddings = None
         self.movies_data = None
         self.use_external = False
 
         if not lazy_load:
-            self._model = SentenceTransformer(model_name)
+            self._model = SentenceTransformer(self.model_name)
             if getattr(Config, "PREWARM_MODEL", False):
                 try:
                     _ = self._model.encode(["warmup"], batch_size=1)
@@ -132,4 +133,6 @@ class MovieBERTProcessor:
             elif col_type == "int64":
                 self.movies_data[col] = self.movies_data[col].astype("int32")
 
-        print(f"Embeddings loaded successfully from {candidate_path} with memory optimization!")
+        print(
+            f"Embeddings loaded successfully from {candidate_path} with memory optimization!"
+        )
