@@ -36,15 +36,7 @@ def get_engine():
             bert_processor.load_embeddings()
             logger.info("Creating recommendation engine...")
             engine = MovieRecommendationEngine(bert_processor, use_imdb=False)
-
-            # Pre-warm the BERT model with a dummy encoding to avoid first-request timeout
-            logger.info("Pre-warming BERT model...")
-            _ = engine.bert_processor.model.encode(
-                ["warmup query"], show_progress_bar=False
-            )
-            logger.info("BERT model ready")
-
-            logger.info("Recommendation engine initialized successfully")
+            logger.info("Recommendation engine initialized successfully (model will load on first request)")
 
             # Log memory usage
             try:
