@@ -106,7 +106,7 @@ class MovieBERTProcessor:
         print(f"Embeddings saved to {resolved_path}")
 
     def load_embeddings(self, filepath="movie_embeddings.pkl"):
-        """Load pre-computed embeddings with uint8 quantization only (no PCA)"""
+        """Load pre-computed embeddings with sparse on-demand loading"""
         candidate_path = (
             filepath
             if os.path.isabs(filepath)
@@ -125,13 +125,14 @@ class MovieBERTProcessor:
             data = pickle.load(f)
 
         embeddings = data["embeddings"]
-
-        # Quantize to uint8: scale from [-1, 1] to [0, 255]
-        # Keep embeddings at original dimensions but use uint8 dtype
-        if embeddings.dtype != np.uint8:
-            embeddings = np.clip((embeddings + 1) * 127.5, 0, 255).astype(np.uint8)
-
-        self.movie_embeddings = embeddings
+        
+        # Store embeddings filepath and metadata only, defer actual loading
+        self._embeddings_file = candidate_path
+        self._embeddings_shape = embeddings.shape
+        self._embeddings_dtype = embeddings.dtype
+        
+        # Store only the movie data, not embeddings
+        self.movie_embeddings = None
         self.movies_data = data["movies_data"]
 
         # Downcast numeric columns to save metadata memory
@@ -142,4 +143,21 @@ class MovieBERTProcessor:
             elif col_type == "int64":
                 self.movies_data[col] = self.movies_data[col].astype("int32")
 
-        print(f"Embeddings loaded with uint8 quantization from {candidate_path}!")
+        print(f"Embeddings metadata loaded from {candidate_path} (embeddings loaded on-demand)")
+
+    def _get_embeddings(self):
+        """Lazy load embeddings on-demand"""
+        if self.movie_embeddings is None:
+            print("Loading embeddings from disk...")
+            with open(self._embeddings_file, "rb") as f:
+                data = pickle.load(f)
+            embeddings = data["embeddings"]
+            
+            # Quantize to uint8: scale from [-1, 1] to [0, 255]
+            if embeddings.dtype != np.uint8:
+                embeddings = np.clip((embeddings + 1) * 127.5, 0, 255).astype(np.uint8)
+            
+            self.movie_embeddings = embeddings
+            print(f"Embeddings loaded into memory: {self.movie_embeddings.shape}")
+        
+        return self.movie_embeddings

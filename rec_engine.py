@@ -11,7 +11,7 @@ class MovieRecommendationEngine:
     def __init__(self, bert_processor, use_imdb=True):
         self.bert_processor = bert_processor
         self.movies = bert_processor.movies_data
-        self.embeddings = bert_processor.movie_embeddings
+        # Don't store embeddings directly - get them via bert_processor._get_embeddings()
 
         # Initialize IMDB service if API key is available
         self.imdb_service = None
@@ -28,9 +28,12 @@ class MovieRecommendationEngine:
         query_embedding = self.bert_processor.encode([query])[0]
         query_embedding = np.array(query_embedding, dtype=np.float32).reshape(1, -1)
 
+        # Get embeddings on-demand
+        embeddings = self.bert_processor._get_embeddings()
+        
         # Dequantize embeddings from uint8 to float32 for similarity computation
-        embeddings = np.array(self.embeddings, dtype=np.float32)
-        if self.embeddings.dtype == np.uint8:
+        embeddings = np.array(embeddings, dtype=np.float32)
+        if self.bert_processor.movie_embeddings.dtype == np.uint8:
             # Dequantize: reverse the [0, 255] -> [-1, 1] scaling
             # Formula: (value / 127.5) - 1
             embeddings = (embeddings / 127.5) - 1
@@ -65,9 +68,12 @@ class MovieRecommendationEngine:
             return []
         movie_idx = movie_idx_list[0]
 
+        # Get embeddings on-demand
+        embeddings = self.bert_processor._get_embeddings()
+        
         # Dequantize embeddings from uint8 to float32 for similarity computation
-        embeddings = np.array(self.embeddings, dtype=np.float32)
-        if self.embeddings.dtype == np.uint8:
+        embeddings = np.array(embeddings, dtype=np.float32)
+        if self.bert_processor.movie_embeddings.dtype == np.uint8:
             # Dequantize: reverse the [0, 255] -> [-1, 1] scaling
             # Formula: (value / 127.5) - 1
             embeddings = (embeddings / 127.5) - 1
