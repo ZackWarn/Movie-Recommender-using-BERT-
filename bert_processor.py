@@ -20,8 +20,6 @@ class MovieBERTProcessor:
         self.movie_embeddings = None
         self.movies_data = None
         self.use_external = False
-        self._pca_components = None  # Will be loaded with embeddings
-        self._pca_mean = None  # Will be loaded with embeddings
 
         if not lazy_load:
             self._model = SentenceTransformer(self.model_name)
@@ -50,14 +48,6 @@ class MovieBERTProcessor:
 
         batch_size = getattr(Config, "ENCODING_BATCH_SIZE", 32) or 32
         embeddings = self.model.encode(texts, batch_size=batch_size)
-
-        # Apply PCA if available (when movie embeddings have been reduced)
-        if self._pca_components is not None:
-            # Manual PCA transform using stored components and mean
-            embeddings = embeddings.astype(np.float32)
-            embeddings = embeddings - self._pca_mean
-            embeddings = np.dot(embeddings, self._pca_components.T)
-
         return embeddings
 
     def prepare_movie_texts(self, movies_df):
@@ -116,7 +106,7 @@ class MovieBERTProcessor:
         print(f"Embeddings saved to {resolved_path}")
 
     def load_embeddings(self, filepath="movie_embeddings.pkl"):
-        """Load pre-computed embeddings with maximum memory optimization"""
+        """Load pre-computed embeddings with uint8 quantization only (no PCA)"""
         candidate_path = (
             filepath
             if os.path.isabs(filepath)
@@ -136,33 +126,8 @@ class MovieBERTProcessor:
 
         embeddings = data["embeddings"]
 
-        # Apply aggressive PCA to reduce dimensionality: 384D -> 32D (saves ~92% memory)
-        # Then quantize to uint8 (saves ~97% total vs float32)
-        try:
-            from sklearn.decomposition import PCA
-
-            if embeddings.shape[1] > 32:
-                print(
-                    f"Reducing embedding dimensions from {embeddings.shape[1]} to 32 using PCA..."
-                )
-                # Use incremental PCA to reduce memory during fit
-                pca = PCA(n_components=32, random_state=42)
-                embeddings = pca.fit_transform(embeddings.astype(np.float32))
-                
-                # Store only the components and mean needed for transform (not full PCA object)
-                self._pca_components = pca.components_.astype(np.float32)
-                self._pca_mean = pca.mean_.astype(np.float32)
-                
-                # Clear the full PCA object to free memory
-                del pca
-                
-                print(f"PCA reduction complete. New shape: {embeddings.shape}")
-        except Exception as e:
-            print(f"PCA reduction failed: {e}. Continuing with original dimensions...")
-            self._pca_components = None
-            self._pca_mean = None
-
-        # Quantize to uint8 after PCA: scale from [-1, 1] to [0, 255]
+        # Quantize to uint8: scale from [-1, 1] to [0, 255]
+        # Keep embeddings at original dimensions but use uint8 dtype
         if embeddings.dtype != np.uint8:
             embeddings = np.clip((embeddings + 1) * 127.5, 0, 255).astype(np.uint8)
 
@@ -177,4 +142,4 @@ class MovieBERTProcessor:
             elif col_type == "int64":
                 self.movies_data[col] = self.movies_data[col].astype("int32")
 
-        print(f"Embeddings loaded with aggressive PCA (32D) + uint8 quantization from {candidate_path}!")
+        print(f"Embeddings loaded with uint8 quantization from {candidate_path}!")

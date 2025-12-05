@@ -29,12 +29,11 @@ class MovieRecommendationEngine:
         query_embedding = np.array(query_embedding, dtype=np.float32).reshape(1, -1)
 
         # Dequantize embeddings from uint8 to float32 for similarity computation
-        embeddings = np.array(self.embeddings)
-        if embeddings.dtype == np.uint8:
+        embeddings = np.array(self.embeddings, dtype=np.float32)
+        if self.embeddings.dtype == np.uint8:
             # Dequantize: reverse the [0, 255] -> [-1, 1] scaling
-            embeddings = embeddings.astype(np.float32) / 127.5 - 1
-        elif embeddings.dtype != np.float32:
-            embeddings = embeddings.astype(np.float32)
+            # Formula: (value / 127.5) - 1
+            embeddings = (embeddings / 127.5) - 1
 
         # Compute cosine similarities (cosine_similarity handles normalization internally)
         similarities = cosine_similarity(query_embedding, embeddings)[0]
@@ -67,12 +66,11 @@ class MovieRecommendationEngine:
         movie_idx = movie_idx_list[0]
 
         # Dequantize embeddings from uint8 to float32 for similarity computation
-        embeddings = np.array(self.embeddings)
-        if embeddings.dtype == np.uint8:
+        embeddings = np.array(self.embeddings, dtype=np.float32)
+        if self.embeddings.dtype == np.uint8:
             # Dequantize: reverse the [0, 255] -> [-1, 1] scaling
-            embeddings = embeddings.astype(np.float32) / 127.5 - 1
-        elif embeddings.dtype != np.float32:
-            embeddings = embeddings.astype(np.float32)
+            # Formula: (value / 127.5) - 1
+            embeddings = (embeddings / 127.5) - 1
 
         movie_embedding = embeddings[movie_idx].reshape(1, -1)
 
