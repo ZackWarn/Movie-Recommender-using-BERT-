@@ -4,8 +4,8 @@
     env: python
     region: oregon
     plan: free
-    buildCommand: pip install --upgrade pip && pip install --no-cache-dir gunicorn && pip install --no-cache-dir -r requirements.txt && python -c 'from sentence_transformers import SentenceTransformer; SentenceTransformer("sentence-transformers/paraphrase-MiniLM-L3-v2")'
-    startCommand: gunicorn flask_api:app --bind 0.0.0.0:$PORT --timeout 300 --workers 1 --threads 1 --worker-class sync --max-requests 100 --max-requests-jitter 10
+    buildCommand: pip install --upgrade pip && pip install --no-cache-dir gunicorn && pip install --no-cache-dir -r requirements.txt && python cache_model.py
+    startCommand: gunicorn flask_api:app --bind 0.0.0.0:$PORT --timeout 600 --workers 1 --threads 1 --worker-class sync --max-requests 100 --max-requests-jitter 10
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.8
