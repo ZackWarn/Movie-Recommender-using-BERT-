@@ -20,6 +20,7 @@ class MovieBERTProcessor:
         self.movie_embeddings = None
         self.movies_data = None
         self.use_external = False
+        self._pca = None  # Will be loaded with embeddings
 
         if not lazy_load:
             self._model = SentenceTransformer(self.model_name)
@@ -47,7 +48,13 @@ class MovieBERTProcessor:
             texts = [texts]
 
         batch_size = getattr(Config, "ENCODING_BATCH_SIZE", 32) or 32
-        return self.model.encode(texts, batch_size=batch_size)
+        embeddings = self.model.encode(texts, batch_size=batch_size)
+        
+        # Apply PCA if available (when movie embeddings have been reduced)
+        if self._pca is not None:
+            embeddings = self._pca.transform(embeddings.astype(np.float32))
+        
+        return embeddings
 
     def prepare_movie_texts(self, movies_df):
         """Combine movie information into text descriptions"""
@@ -105,7 +112,7 @@ class MovieBERTProcessor:
         print(f"Embeddings saved to {resolved_path}")
 
     def load_embeddings(self, filepath="movie_embeddings.pkl"):
-        """Load pre-computed embeddings with memory optimization"""
+        """Load pre-computed embeddings with aggressive memory optimization using PCA dimensionality reduction"""
         candidate_path = (
             filepath
             if os.path.isabs(filepath)
@@ -123,9 +130,29 @@ class MovieBERTProcessor:
         with open(candidate_path, "rb") as f:
             data = pickle.load(f)
 
-        self.movie_embeddings = data["embeddings"].astype("float16")
+        embeddings = data["embeddings"]
+        
+        # Apply PCA to reduce dimensionality: 384D -> 64D (saves ~85% memory)
+        # This aggressive reduction is necessary for 512MB Render free tier
+        try:
+            from sklearn.decomposition import PCA
+            if embeddings.shape[1] > 64:
+                print(f"Reducing embedding dimensions from {embeddings.shape[1]} to 64 using PCA...")
+                self._pca = PCA(n_components=64, random_state=42)
+                embeddings = self._pca.fit_transform(embeddings.astype(np.float32))
+                print(f"PCA reduction complete. New shape: {embeddings.shape}")
+        except Exception as e:
+            print(f"PCA reduction failed: {e}. Continuing with original dimensions...")
+            self._pca = None
+        
+        # Quantize to uint8 after PCA: scale from [-1, 1] to [0, 255]
+        if embeddings.dtype != np.uint8:
+            embeddings = np.clip((embeddings + 1) * 127.5, 0, 255).astype(np.uint8)
+        
+        self.movie_embeddings = embeddings
         self.movies_data = data["movies_data"]
 
+        # Downcast numeric columns to save metadata memory
         for col in self.movies_data.columns:
             col_type = self.movies_data[col].dtype
             if col_type == "float64":
@@ -133,6 +160,4 @@ class MovieBERTProcessor:
             elif col_type == "int64":
                 self.movies_data[col] = self.movies_data[col].astype("int32")
 
-        print(
-            f"Embeddings loaded successfully from {candidate_path} with memory optimization!"
-        )
+        print(f"Embeddings loaded with PCA + uint8 quantization from {candidate_path}!")
