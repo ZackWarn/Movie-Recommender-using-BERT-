@@ -5,8 +5,9 @@ scikit-learn>=1.0.0,<2.0.0
 scipy>=1.7.0,<2.0.0
 
 # BERT and NLP - CPU optimized
+--extra-index-url https://download.pytorch.org/whl/cpu
 transformers>=4.20.0,<5.0.0
-torch>=2.0.0,<3.0.0
+torch==2.2.2+cpu
 sentence-transformers>=2.2.0,<3.0.0
 
 # Web Framework
