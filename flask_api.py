@@ -6,12 +6,25 @@ from config import Config
 import logging
 import numpy as np
 
-# Set up logging
+    """Get recommendations based on natural language query.
+
+    Accepts POST with JSON body or GET with query params for easier testing.
+    """
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+        query = ""
+        top_k = 10
 
-app = Flask(__name__)
-# Allow CORS from local dev and production domains
+        if request.method == "GET":
+            query = (request.args.get("query", "") or "").strip()
+            top_k = request.args.get("top_k", 10)
+        else:  # POST
+            data = request.get_json(silent=True) or {}
+            if not data:
+                # Fallback to form data if sent as form-encoded
+                data = request.form or {}
+            query = (data.get("query", "") or "").strip()
+            top_k = data.get("top_k", 10)
 # Using origins="*" to allow all Vercel deployments (preview + production)
 CORS(
     app,
