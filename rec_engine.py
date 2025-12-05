@@ -26,19 +26,17 @@ class MovieRecommendationEngine:
     def recommend_by_query(self, query, top_k=10):
         # Encode the query to embedding vector (external HF API if configured)
         query_embedding = self.bert_processor.encode([query])[0]
-        query_embedding = np.array(query_embedding).reshape(1, -1)
+        query_embedding = np.array(query_embedding, dtype=np.float32).reshape(1, -1)
 
         # Dequantize embeddings from uint8 to float32 for similarity computation
-        embeddings = np.array(self.embeddings, dtype=np.float32)
+        embeddings = np.array(self.embeddings)
         if embeddings.dtype == np.uint8:
             # Dequantize: reverse the [0, 255] -> [-1, 1] scaling
-            embeddings = (embeddings / 127.5) - 1
+            embeddings = embeddings.astype(np.float32) / 127.5 - 1
+        elif embeddings.dtype != np.float32:
+            embeddings = embeddings.astype(np.float32)
 
-        # Normalize embeddings for cosine similarity
-        embeddings = embeddings / (np.linalg.norm(embeddings, axis=1, keepdims=True) + 1e-8)
-        query_embedding = query_embedding / (np.linalg.norm(query_embedding) + 1e-8)
-
-        # Compute cosine similarities
+        # Compute cosine similarities (cosine_similarity handles normalization internally)
         similarities = cosine_similarity(query_embedding, embeddings)[0]
 
         # Get indices of top_k highest similarity scores
@@ -69,17 +67,16 @@ class MovieRecommendationEngine:
         movie_idx = movie_idx_list[0]
 
         # Dequantize embeddings from uint8 to float32 for similarity computation
-        embeddings = np.array(self.embeddings, dtype=np.float32)
+        embeddings = np.array(self.embeddings)
         if embeddings.dtype == np.uint8:
             # Dequantize: reverse the [0, 255] -> [-1, 1] scaling
-            embeddings = (embeddings / 127.5) - 1
+            embeddings = embeddings.astype(np.float32) / 127.5 - 1
+        elif embeddings.dtype != np.float32:
+            embeddings = embeddings.astype(np.float32)
 
         movie_embedding = embeddings[movie_idx].reshape(1, -1)
 
-        # Normalize embeddings for cosine similarity
-        embeddings = embeddings / (np.linalg.norm(embeddings, axis=1, keepdims=True) + 1e-8)
-        movie_embedding = movie_embedding / (np.linalg.norm(movie_embedding) + 1e-8)
-
+        # Compute cosine similarities (cosine_similarity handles normalization internally)
         similarities = cosine_similarity(movie_embedding, embeddings)[0]
 
         # Sort similarities excluding the movie itself
