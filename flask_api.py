@@ -112,17 +112,23 @@ def health_check():
 def get_recommendations_by_query():
     """Get recommendations based on natural language query"""
     try:
+        logger.info("Received recommendation query request")
         data = request.get_json()
         query = data.get("query", "").strip()
         top_k = data.get("top_k", 10)
+        logger.info(f"Query: {query}, Top K: {top_k}")
 
         if not query:
             return jsonify({"error": "Query is required"}), 400
 
+        logger.info("Getting engine...")
         engine = get_engine()
+        logger.info("Engine ready")
 
         # Use local recommendations only (IMDb disabled per request)
+        logger.info(f"Encoding query and finding recommendations...")
         recommendations = engine.recommend_by_query(query, top_k)
+        logger.info(f"Found {len(recommendations)} recommendations")
 
         return jsonify(
             {
@@ -133,25 +139,31 @@ def get_recommendations_by_query():
         )
 
     except Exception as e:
-        logger.error(f"Error in query recommendations: {e}")
-        return jsonify({"error": str(e)}), 500
+        logger.exception(f"Error in query recommendations: {e}")
+        return jsonify({"error": str(e), "type": type(e).__name__}), 500
 
 
 @app.route("/api/recommendations/similar", methods=["POST"])
 def get_similar_movies():
     """Get similar movies based on movie ID"""
     try:
+        logger.info("Received similar movies request")
         data = request.get_json()
         movie_id = data.get("movie_id")
         top_k = data.get("top_k", 10)
+        logger.info(f"Movie ID: {movie_id}, Top K: {top_k}")
 
         if not movie_id:
             return jsonify({"error": "Movie ID is required"}), 400
 
+        logger.info("Getting engine...")
         engine = get_engine()
+        logger.info("Engine ready")
 
         # Use local recommendations only (IMDb disabled per request)
+        logger.info(f"Finding similar movies...")
         recommendations = engine.recommend_similar_movies(movie_id, top_k)
+        logger.info(f"Found {len(recommendations)} similar movies")
 
         return jsonify(
             {
@@ -162,8 +174,8 @@ def get_similar_movies():
         )
 
     except Exception as e:
-        logger.error(f"Error in similar movies: {e}")
-        return jsonify({"error": str(e)}), 500
+        logger.exception(f"Error in similar movies: {e}")
+        return jsonify({"error": str(e), "type": type(e).__name__}), 500
 
 
 @app.route("/api/search", methods=["POST"])
