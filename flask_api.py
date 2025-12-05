@@ -36,16 +36,7 @@ def get_engine():
             bert_processor.load_embeddings()
             logger.info("Creating recommendation engine...")
             engine = MovieRecommendationEngine(bert_processor, use_imdb=False)
-            
-            # Pre-download model to cache (doesn't encode, just downloads)
-            try:
-                logger.info("Pre-downloading BERT model to cache...")
-                from sentence_transformers import SentenceTransformer
-                _ = SentenceTransformer(Config.BERT_MODEL_NAME)
-                logger.info("Model cached successfully")
-            except Exception as e:
-                logger.warning(f"Model pre-download failed (will retry on first request): {e}")
-            
+
             logger.info(
                 "Recommendation engine initialized successfully (model will load on first request)"
             )
