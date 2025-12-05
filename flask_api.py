@@ -122,25 +122,47 @@ def health_check():
     return jsonify({"status": "healthy", "imdb_available": Config.validate_config()})
 
 
-@app.route("/api/recommendations/query", methods=["POST"])
+@app.route("/api/recommendations/query", methods=["GET", "POST"])
 def get_recommendations_by_query():
-    """Get recommendations based on natural language query"""
+    """Get recommendations based on natural language query.
+
+    Accepts POST with JSON/form body or GET with query params for easier testing.
+    """
     try:
         logger.info("Received recommendation query request")
-        data = request.get_json()
-        query = data.get("query", "").strip()
-        top_k = data.get("top_k", 10)
+
+        query = ""
+        top_k = 10
+
+        if request.method == "GET":
+            query = (request.args.get("query", "") or "").strip()
+            top_k = request.args.get("top_k", 10)
+        else:  # POST
+            data = request.get_json(silent=True) or {}
+            if not data:
+                # Fallback to form data if sent as form-encoded
+                data = request.form or {}
+            query = (data.get("query", "") or "").strip()
+            top_k = data.get("top_k", 10)
+
+        try:
+            top_k = int(top_k)
+        except Exception:
+            return jsonify({"error": "top_k must be an integer"}), 400
+
         logger.info(f"Query: {query}, Top K: {top_k}")
 
         if not query:
             return jsonify({"error": "Query is required"}), 400
+        if top_k <= 0:
+            return jsonify({"error": "top_k must be positive"}), 400
 
         logger.info("Getting engine...")
         engine = get_engine()
         logger.info("Engine ready")
 
         # Use local recommendations only (IMDb disabled per request)
-        logger.info(f"Encoding query and finding recommendations...")
+        logger.info("Encoding query and finding recommendations...")
         recommendations = engine.recommend_by_query(query, top_k)
         logger.info(f"Found {len(recommendations)} recommendations")
 
@@ -153,7 +175,7 @@ def get_recommendations_by_query():
         )
 
     except Exception as e:
-        logger.exception(f"Error in query recommendations: {e}")
+        logger.error(f"Error in query recommendations: {e}", exc_info=True)
         return jsonify({"error": str(e), "type": type(e).__name__}), 500
 
 
