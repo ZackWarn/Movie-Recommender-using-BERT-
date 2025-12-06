@@ -15,17 +15,16 @@ class Config:
     EMBEDDINGS_FILE = "movie_embeddings.pkl"
     ENCODING_BATCH_SIZE: int = 64
     PREWARM_MODEL: bool = False
-
-    # Use external API for embeddings to avoid loading model (saves ~150MB)
+    
+    # External API disabled by default (HF returns 410 for this model)
+    # Use local model which works reliably (~485MB peak memory, within 512MB limit)
     USE_EXTERNAL_EMBEDDINGS: bool = (
-        os.getenv("USE_EXTERNAL_EMBEDDINGS", "true").lower() == "true"
+        os.getenv("USE_EXTERNAL_EMBEDDINGS", "false").lower() == "true"
     )
     HF_API_TOKEN: Optional[str] = os.getenv("HF_API_TOKEN")
     HF_INFERENCE_ENDPOINT: str = (
         f"https://api-inference.huggingface.co/pipeline/feature-extraction/{BERT_MODEL_NAME}"
-    )
-
-    # Recommendation Configuration
+    )    # Recommendation Configuration
     DEFAULT_TOP_K: int = 10
     MAX_SEARCH_RESULTS: int = 20
 
