@@ -24,14 +24,29 @@ CORS(
 engine = None
 
 
+def log_memory(stage=""):
+    """Log current memory usage"""
+    try:
+        import psutil
+        import os
+        process = psutil.Process(os.getpid())
+        mem_mb = process.memory_info().rss / 1024 / 1024
+        logger.info(f"Memory at {stage}: {mem_mb:.2f} MB")
+        return mem_mb
+    except ImportError:
+        return None
+
+
 def get_engine():
     """Get or create the recommendation engine (lazy loading)"""
     global engine
     if engine is None:
         try:
+            log_memory("before engine init")
             logger.info("Initializing recommendation engine...")
             # Use lazy_load=True to skip loading BERT model initially
             bert_processor = MovieBERTProcessor(lazy_load=True)
+            log_memory("after bert_processor init")
             # Skip pre-loading embeddings to save memory on cold start
             # Embeddings will be loaded on first recommendation request
             logger.info(
@@ -39,17 +54,7 @@ def get_engine():
             )
             engine = MovieRecommendationEngine(bert_processor, use_imdb=False)
             logger.info("Engine ready")
-
-            # Log memory usage
-            try:
-                import psutil
-                import os
-
-                process = psutil.Process(os.getpid())
-                mem_mb = process.memory_info().rss / 1024 / 1024
-                logger.info(f"Startup memory usage: {mem_mb:.2f} MB")
-            except ImportError:
-                logger.warning("psutil not available for memory monitoring")
+            log_memory("startup complete")
         except Exception as e:
             logger.error(f"Failed to initialize recommendation engine: {e}")
             raise
@@ -149,24 +154,16 @@ def get_recommendations_by_query():
 
         # Load embeddings only on first recommendation (lazy load to save startup memory)
         if engine.bert_processor.movie_embeddings is None:
+            log_memory("before loading embeddings metadata")
             logger.info("Loading embeddings...")
             engine.bert_processor.load_embeddings()
-            logger.info("Embeddings loaded")
-
-            # Log memory usage
-            try:
-                import psutil
-                import os
-
-                process = psutil.Process(os.getpid())
-                mem_mb = process.memory_info().rss / 1024 / 1024
-                logger.info(f"Memory after loading embeddings: {mem_mb:.2f} MB")
-            except ImportError:
-                pass
+            log_memory("after loading metadata")
 
         # Use local recommendations only (IMDb disabled per request)
         logger.info("Encoding query and finding recommendations...")
+        log_memory("before encoding query")
         recommendations = engine.recommend_by_query(query, top_k)
+        log_memory("after recommendations complete")
         logger.info(f"Found {len(recommendations)} recommendations")
 
         return jsonify(

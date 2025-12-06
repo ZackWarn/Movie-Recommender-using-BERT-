@@ -42,13 +42,55 @@ class MovieBERTProcessor:
         return self._model
 
     def encode(self, texts: List[str]):
-        """Encode texts into embeddings using the local model."""
+        """Encode texts into embeddings using external API or local model."""
         if not isinstance(texts, list):
             texts = [texts]
 
+        # Use external API if configured (saves ~150MB model memory)
+        if Config.USE_EXTERNAL_EMBEDDINGS:
+            return self._encode_external(texts)
+        
+        # Fall back to local model
         batch_size = getattr(Config, "ENCODING_BATCH_SIZE", 32) or 32
         embeddings = self.model.encode(texts, batch_size=batch_size)
         return embeddings
+    
+    def _encode_external(self, texts: List[str]):
+        """Encode texts using Hugging Face Inference API"""
+        import requests
+        import time
+        
+        headers = {}
+        if Config.HF_API_TOKEN:
+            headers["Authorization"] = f"Bearer {Config.HF_API_TOKEN}"
+        
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(
+                    Config.HF_INFERENCE_ENDPOINT,
+                    headers=headers,
+                    json={"inputs": texts, "options": {"wait_for_model": True}},
+                    timeout=30
+                )
+                
+                if response.status_code == 200:
+                    embeddings = response.json()
+                    return np.array(embeddings)
+                elif response.status_code == 503:
+                    # Model loading, retry
+                    time.sleep(2 ** attempt)
+                    continue
+                else:
+                    print(f"External API error: {response.status_code}, falling back to local model")
+                    break
+            except Exception as e:
+                print(f"External API failed: {e}, falling back to local model")
+                break
+        
+        # Fallback to local model
+        batch_size = getattr(Config, "ENCODING_BATCH_SIZE", 32) or 32
+        return self.model.encode(texts, batch_size=batch_size)
 
     def prepare_movie_texts(self, movies_df):
         """Combine movie information into text descriptions"""
@@ -153,15 +195,31 @@ class MovieBERTProcessor:
         """Lazy load embeddings on-demand"""
         if self.movie_embeddings is None:
             print("Loading embeddings from disk...")
+            self._log_memory("before loading embeddings from disk")
+            
             with open(self._embeddings_file, "rb") as f:
                 data = pickle.load(f)
             embeddings = data["embeddings"]
+            
+            self._log_memory("after loading raw embeddings")
             
             # Quantize to uint8: scale from [-1, 1] to [0, 255]
             if embeddings.dtype != np.uint8:
                 embeddings = np.clip((embeddings + 1) * 127.5, 0, 255).astype(np.uint8)
             
             self.movie_embeddings = embeddings
+            self._log_memory("after quantization complete")
             print(f"Embeddings loaded into memory: {self.movie_embeddings.shape}")
         
         return self.movie_embeddings
+    
+    def _log_memory(self, stage=""):
+        """Log memory usage if psutil is available"""
+        try:
+            import psutil
+            import os
+            process = psutil.Process(os.getpid())
+            mem_mb = process.memory_info().rss / 1024 / 1024
+            print(f"[MEMORY] {stage}: {mem_mb:.2f} MB")
+        except:
+            pass
