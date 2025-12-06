@@ -107,6 +107,10 @@ class MovieBERTProcessor:
 
     def load_embeddings(self, filepath="movie_embeddings.pkl"):
         """Load pre-computed embeddings with sparse on-demand loading"""
+        # Skip if already loaded
+        if self.movies_data is not None:
+            return
+            
         candidate_path = (
             filepath
             if os.path.isabs(filepath)
@@ -126,7 +130,7 @@ class MovieBERTProcessor:
 
         embeddings = data["embeddings"]
         
-        # Store embeddings filepath and metadata only, defer actual loading
+        # Store embeddings filepath and metadata only, defer actual embedding array loading
         self._embeddings_file = candidate_path
         self._embeddings_shape = embeddings.shape
         self._embeddings_dtype = embeddings.dtype

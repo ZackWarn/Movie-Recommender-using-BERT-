@@ -10,8 +10,7 @@ logger = logging.getLogger(__name__)
 class MovieRecommendationEngine:
     def __init__(self, bert_processor, use_imdb=True):
         self.bert_processor = bert_processor
-        self.movies = bert_processor.movies_data
-        # Don't store embeddings directly - get them via bert_processor._get_embeddings()
+        # Don't store movies or embeddings directly - access via bert_processor
 
         # Initialize IMDB service if API key is available
         self.imdb_service = None
@@ -22,6 +21,11 @@ class MovieRecommendationEngine:
             except Exception as e:
                 logger.warning(f"Failed to initialize IMDB service: {e}")
                 self.imdb_service = None
+    
+    @property
+    def movies(self):
+        """Access movies data from bert_processor"""
+        return self.bert_processor.movies_data
 
     def recommend_by_query(self, query, top_k=10):
         # Encode the query to embedding vector (external HF API if configured)
