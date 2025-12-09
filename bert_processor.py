@@ -42,12 +42,27 @@ class MovieBERTProcessor:
         except Exception:
             return 0
 
-    def _can_safely_load_model(self, threshold_mb=380):
-        """Check if we have enough memory headroom to load BERT model (~150MB)"""
+    def _can_safely_load_model(self, max_total_mb=470):
+        """
+        Check if we can safely load BERT model (~150MB) without exceeding limits.
+        
+        Args:
+            max_total_mb: Maximum total memory allowed (default 470MB, leaves 42MB buffer below 512MB)
+        
+        Returns:
+            True if current + 150MB < max_total_mb
+        """
         current_mb = self._get_memory_mb()
-        available = threshold_mb - current_mb
-        logger.info(f"Memory check: {current_mb:.1f}MB used, {available:.1f}MB available before {threshold_mb}MB threshold")
-        return available > 150  # Need 150MB for model
+        projected_mb = current_mb + 150  # BERT model is ~150MB
+        safe = projected_mb < max_total_mb
+        
+        logger.info(
+            f"Memory check: {current_mb:.1f}MB current, "
+            f"{projected_mb:.1f}MB projected with model, "
+            f"{'SAFE' if safe else 'UNSAFE'} (limit: {max_total_mb}MB)"
+        )
+        
+        return safe
 
     @property
     def model(self) -> SentenceTransformer:

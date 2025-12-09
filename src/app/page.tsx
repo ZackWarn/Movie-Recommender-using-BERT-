@@ -68,7 +68,7 @@ export default function CineMatchHero() {
         },
         body: JSON.stringify({
           query: search,
-          top_k: 10
+          top_k: 8
         }),
       });
 
