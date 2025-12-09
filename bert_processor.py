@@ -11,6 +11,7 @@ import gc
 import numpy as np
 import pandas as pd
 from sentence_transformers import SentenceTransformer
+from sklearn.decomposition import PCA
 
 from config import Config
 
@@ -185,6 +186,17 @@ class MovieBERTProcessor:
                 print(f"Processed {i + len(batch)}/{len(movie_texts)} movies...")
 
         self.movie_embeddings = np.vstack(embeddings)
+
+        # Apply PCA dimensionality reduction: 384D -> 32D (saves ~86% memory)
+        print(
+            f"Reducing embeddings from {self.movie_embeddings.shape[1]}D to 32D using PCA..."
+        )
+        pca = PCA(n_components=32)
+        self.movie_embeddings = pca.fit_transform(self.movie_embeddings).astype(
+            np.float32
+        )
+        print(f"Embeddings reduced to {self.movie_embeddings.shape}")
+
         self.movies_data = movies_df.reset_index(drop=True)
 
         print("Embeddings generated successfully!")
@@ -260,12 +272,12 @@ class MovieBERTProcessor:
 
             self._log_memory("after loading raw embeddings")
 
-            # Quantize to uint8: scale from [-1, 1] to [0, 255]
-            if embeddings.dtype != np.uint8:
-                embeddings = np.clip((embeddings + 1) * 127.5, 0, 255).astype(np.uint8)
+            # Ensure embeddings are float32 (PCA outputs float32, no conversion needed)
+            if embeddings.dtype != np.float32:
+                embeddings = embeddings.astype(np.float32)
 
             self.movie_embeddings = embeddings
-            self._log_memory("after quantization complete")
+            self._log_memory("after loading complete")
             print(f"Embeddings loaded into memory: {self.movie_embeddings.shape}")
 
         return self.movie_embeddings

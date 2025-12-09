@@ -36,17 +36,19 @@ class MovieRecommendationEngine:
         """
         # Step 1: Get keyword-based recommendations (always works, ~330MB)
         logger.info(f"Getting keyword matches for query: {query}")
-        keyword_results = self._recommend_by_title_match(query, top_k=30)  # Get more for re-ranking
-        
+        keyword_results = self._recommend_by_title_match(
+            query, top_k=30
+        )  # Get more for re-ranking
+
         # Step 2: Check if we can enhance with semantic scoring
         query_embedding = self.bert_processor.encode([query], force_semantic=True)[0]
         query_embedding = np.array(query_embedding, dtype=np.float32).reshape(1, -1)
-        
+
         # If we got real embeddings (not zeros), do semantic re-ranking
         if not np.allclose(query_embedding, 0):
             logger.info("Enhancing with semantic re-ranking")
             return self._hybrid_rerank(query, keyword_results, query_embedding, top_k)
-        
+
         # Otherwise, return keyword results only
         logger.info("Returning keyword-only results (semantic unavailable)")
         return keyword_results[:top_k]
@@ -55,36 +57,36 @@ class MovieRecommendationEngine:
         """Re-rank keyword results using semantic similarity for better quality"""
         if not keyword_results:
             return []
-        
+
         # Get movie IDs from keyword results
         movie_ids = [r["movieId"] for r in keyword_results]
-        
+
         # Get indices of these movies in our dataset
         indices = []
         keyword_scores = {}
         for i, result in enumerate(keyword_results):
-            movie_idx_list = self.movies.index[self.movies["movieId"] == result["movieId"]].tolist()
+            movie_idx_list = self.movies.index[
+                self.movies["movieId"] == result["movieId"]
+            ].tolist()
             if movie_idx_list:
                 idx = movie_idx_list[0]
                 indices.append(idx)
                 # Store normalized keyword score (0-1 range based on position)
                 keyword_scores[idx] = 1.0 - (i / len(keyword_results))
-        
+
         if not indices:
             return keyword_results[:top_k]
-        
+
         # Get embeddings for these specific movies
         embeddings = self.bert_processor._get_embeddings()
         subset_embeddings = embeddings[indices]
-        
-        # Dequantize if needed
+
+        # Ensure float32 (PCA outputs are already float32 from dimensionality reduction)
         subset_embeddings = np.array(subset_embeddings, dtype=np.float32)
-        if self.bert_processor.movie_embeddings.dtype == np.uint8:
-            subset_embeddings = (subset_embeddings / 127.5) - 1
-        
+
         # Compute semantic similarities
         similarities = cosine_similarity(query_embedding, subset_embeddings)[0]
-        
+
         # Blend scores: 70% semantic + 30% keyword
         blended_scores = []
         for i, idx in enumerate(indices):
@@ -92,10 +94,10 @@ class MovieRecommendationEngine:
             keyword_score = keyword_scores.get(idx, 0)
             blended = 0.7 * semantic_score + 0.3 * keyword_score
             blended_scores.append((idx, blended, semantic_score))
-        
+
         # Sort by blended score
         blended_scores.sort(key=lambda x: x[1], reverse=True)
-        
+
         # Build final recommendations
         recommendations = []
         for idx, blended_score, semantic_score in blended_scores[:top_k]:
@@ -110,8 +112,10 @@ class MovieRecommendationEngine:
                     "similarity_score": semantic_score,  # Show semantic score
                 }
             )
-        
-        logger.info(f"Hybrid re-ranking complete: returned {len(recommendations)} movies")
+
+        logger.info(
+            f"Hybrid re-ranking complete: returned {len(recommendations)} movies"
+        )
         return recommendations
 
     def recommend_similar_movies(self, movie_id, top_k=8):
@@ -163,38 +167,38 @@ class MovieRecommendationEngine:
         """Fallback: recommend movies by matching query keywords in title/genres"""
         query_lower = query.lower()
         query_words = set(query_lower.split())
-        
+
         # Score movies based on keyword matches
         scores = []
         for idx, movie in self.movies.iterrows():
             score = 0
             title_lower = str(movie.get("clean_title", "")).lower()
             genres = movie.get("genres_list", [])
-            
+
             # Title exact match
             if query_lower in title_lower:
                 score += 10
-            
+
             # Title word matches
             title_words = set(title_lower.split())
             score += len(query_words & title_words) * 3
-            
+
             # Genre matches
             genres_lower = [g.lower() for g in genres if isinstance(g, str)]
             for word in query_words:
                 if any(word in genre for genre in genres_lower):
                     score += 2
-            
+
             # Boost by rating
             score += movie.get("avg_rating", 0) * 0.5
-            
+
             if score > 0:
                 scores.append((idx, score))
-        
+
         # Sort by score and return top_k
         scores.sort(key=lambda x: x[1], reverse=True)
         top_indices = [idx for idx, score in scores[:top_k]]
-        
+
         recommendations = []
         for idx in top_indices:
             movie = self.movies.iloc[idx]
