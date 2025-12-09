@@ -42,26 +42,26 @@ class MovieBERTProcessor:
         except Exception:
             return 0
 
-    def _can_safely_load_model(self, max_total_mb=470):
+    def _can_safely_load_model(self, max_total_mb=480):
         """
         Check if we can safely load BERT model (~150MB) without exceeding limits.
-        
+
         Args:
-            max_total_mb: Maximum total memory allowed (default 470MB, leaves 42MB buffer below 512MB)
-        
+            max_total_mb: Maximum total memory allowed (default 480MB, leaves 32MB buffer below 512MB)
+
         Returns:
-            True if current + 150MB < max_total_mb
+            True if current + 150MB <= max_total_mb
         """
         current_mb = self._get_memory_mb()
         projected_mb = current_mb + 150  # BERT model is ~150MB
-        safe = projected_mb < max_total_mb
-        
+        safe = projected_mb <= max_total_mb
+
         logger.info(
             f"Memory check: {current_mb:.1f}MB current, "
             f"{projected_mb:.1f}MB projected with model, "
             f"{'SAFE' if safe else 'UNSAFE'} (limit: {max_total_mb}MB)"
         )
-        
+
         return safe
 
     @property
@@ -90,7 +90,9 @@ class MovieBERTProcessor:
             try:
                 logger.info("Using BERT model for semantic encoding (memory allows)")
                 gc.collect()  # Clean up before loading model
-                embeddings = self.model.encode(texts, batch_size=Config.ENCODING_BATCH_SIZE)
+                embeddings = self.model.encode(
+                    texts, batch_size=Config.ENCODING_BATCH_SIZE
+                )
                 return np.array(embeddings, dtype=np.float32)
             except Exception as e:
                 logger.warning(f"Failed to use BERT model: {e}, falling back to zeros")
