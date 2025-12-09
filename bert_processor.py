@@ -5,6 +5,8 @@ import logging
 import os
 import pickle
 from typing import List
+import psutil
+import gc
 
 import numpy as np
 import pandas as pd
@@ -32,6 +34,21 @@ class MovieBERTProcessor:
                 except Exception:
                     pass
 
+    def _get_memory_mb(self):
+        """Get current process memory usage in MB"""
+        try:
+            process = psutil.Process()
+            return process.memory_info().rss / (1024 * 1024)
+        except Exception:
+            return 0
+
+    def _can_safely_load_model(self, threshold_mb=380):
+        """Check if we have enough memory headroom to load BERT model (~150MB)"""
+        current_mb = self._get_memory_mb()
+        available = threshold_mb - current_mb
+        logger.info(f"Memory check: {current_mb:.1f}MB used, {available:.1f}MB available before {threshold_mb}MB threshold")
+        return available > 150  # Need 150MB for model
+
     @property
     def model(self) -> SentenceTransformer:
         """Lazy load model only when needed for encoding queries"""
@@ -44,18 +61,27 @@ class MovieBERTProcessor:
                     pass
         return self._model
 
-    def encode(self, texts: List[str]):
+    def encode(self, texts: List[str], force_semantic=False):
         """
-        Encode texts - Use simple averaging of stored movie embeddings as approximation.
-        This avoids loading the 150MB BERT model which causes OOM on 512MB tier.
+        Encode texts using hybrid approach:
+        - If force_semantic=True and memory allows, use BERT model
+        - Otherwise, return zeros (triggers keyword fallback in recommendation engine)
         """
         if not isinstance(texts, list):
             texts = [texts]
 
-        logger.info("Using embedding approximation (no model loading)")
-        
-        # Return a zero vector - the recommendation engine will use title matching instead
-        # This is a fallback that keeps memory under 512MB
+        # Check if we can safely load the model for semantic encoding
+        if force_semantic and self._can_safely_load_model():
+            try:
+                logger.info("Using BERT model for semantic encoding (memory allows)")
+                gc.collect()  # Clean up before loading model
+                embeddings = self.model.encode(texts, batch_size=Config.ENCODING_BATCH_SIZE)
+                return np.array(embeddings, dtype=np.float32)
+            except Exception as e:
+                logger.warning(f"Failed to use BERT model: {e}, falling back to zeros")
+
+        # Fallback: return zeros (triggers keyword matching)
+        logger.info("Using zero embeddings (triggers keyword matching fallback)")
         embedding_dim = 384  # paraphrase-MiniLM-L3-v2 dimension
         return np.zeros((len(texts), embedding_dim), dtype=np.float32)
 

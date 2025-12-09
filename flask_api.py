@@ -29,6 +29,7 @@ def log_memory(stage=""):
     try:
         import psutil
         import os
+
         process = psutil.Process(os.getpid())
         mem_mb = process.memory_info().rss / 1024 / 1024
         logger.info(f"Memory at {stage}: {mem_mb:.2f} MB")
@@ -123,18 +124,18 @@ def get_recommendations_by_query():
         logger.info("Received recommendation query request")
 
         query = ""
-        top_k = 10
+        top_k = 8
 
         if request.method == "GET":
             query = (request.args.get("query", "") or "").strip()
-            top_k = request.args.get("top_k", 10)
+            top_k = request.args.get("top_k", 8)
         else:  # POST
             data = request.get_json(silent=True) or {}
             if not data:
                 # Fallback to form data if sent as form-encoded
                 data = request.form or {}
             query = (data.get("query", "") or "").strip()
-            top_k = data.get("top_k", 10)
+            top_k = data.get("top_k", 8)
 
         try:
             top_k = int(top_k)
