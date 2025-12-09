@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 
+// Force rebuild on Dec 9 - ensures latest frontend code deploys
 const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
