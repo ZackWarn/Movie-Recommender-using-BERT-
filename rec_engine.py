@@ -21,20 +21,25 @@ class MovieRecommendationEngine:
             except Exception as e:
                 logger.warning(f"Failed to initialize IMDB service: {e}")
                 self.imdb_service = None
-    
+
     @property
     def movies(self):
         """Access movies data from bert_processor"""
         return self.bert_processor.movies_data
 
     def recommend_by_query(self, query, top_k=10):
-        # Encode the query to embedding vector (external HF API if configured)
+        # Encode the query to embedding vector
         query_embedding = self.bert_processor.encode([query])[0]
         query_embedding = np.array(query_embedding, dtype=np.float32).reshape(1, -1)
 
+        # Check if embedding is zero (fallback mode - no model loaded)
+        if np.allclose(query_embedding, 0):
+            logger.info("Using title/keyword matching fallback (no BERT model)")
+            return self._recommend_by_title_match(query, top_k)
+
         # Get embeddings on-demand
         embeddings = self.bert_processor._get_embeddings()
-        
+
         # Dequantize embeddings from uint8 to float32 for similarity computation
         embeddings = np.array(embeddings, dtype=np.float32)
         if self.bert_processor.movie_embeddings.dtype == np.uint8:
@@ -74,7 +79,7 @@ class MovieRecommendationEngine:
 
         # Get embeddings on-demand
         embeddings = self.bert_processor._get_embeddings()
-        
+
         # Dequantize embeddings from uint8 to float32 for similarity computation
         embeddings = np.array(embeddings, dtype=np.float32)
         if self.bert_processor.movie_embeddings.dtype == np.uint8:
@@ -109,6 +114,57 @@ class MovieRecommendationEngine:
                 }
             )
         return results
+
+    def _recommend_by_title_match(self, query, top_k=10):
+        """Fallback: recommend movies by matching query keywords in title/genres"""
+        query_lower = query.lower()
+        query_words = set(query_lower.split())
+        
+        # Score movies based on keyword matches
+        scores = []
+        for idx, movie in self.movies.iterrows():
+            score = 0
+            title_lower = str(movie.get("clean_title", "")).lower()
+            genres = movie.get("genres_list", [])
+            
+            # Title exact match
+            if query_lower in title_lower:
+                score += 10
+            
+            # Title word matches
+            title_words = set(title_lower.split())
+            score += len(query_words & title_words) * 3
+            
+            # Genre matches
+            genres_lower = [g.lower() for g in genres if isinstance(g, str)]
+            for word in query_words:
+                if any(word in genre for genre in genres_lower):
+                    score += 2
+            
+            # Boost by rating
+            score += movie.get("avg_rating", 0) * 0.5
+            
+            if score > 0:
+                scores.append((idx, score))
+        
+        # Sort by score and return top_k
+        scores.sort(key=lambda x: x[1], reverse=True)
+        top_indices = [idx for idx, score in scores[:top_k]]
+        
+        recommendations = []
+        for idx in top_indices:
+            movie = self.movies.iloc[idx]
+            recommendations.append(
+                {
+                    "movieId": movie["movieId"],
+                    "title": movie["clean_title"],
+                    "year": movie.get("year", "Unknown"),
+                    "genres": movie.get("genres_list", []),
+                    "avg_rating": movie.get("avg_rating", 0),
+                    "similarity_score": 0.0,  # Not using embeddings
+                }
+            )
+        return recommendations
 
     def search_movies(self, search_term, top_k=20):
         """
