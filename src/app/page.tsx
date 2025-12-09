@@ -48,6 +48,7 @@ interface MovieType {
 
 export default function CineMatchHero() {
   const [search, setSearch] = useState("");
+  const [lastSearchQuery, setLastSearchQuery] = useState(""); // Store the actual query used
   const [recommendations, setRecommendations] = useState<MovieType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -59,6 +60,7 @@ export default function CineMatchHero() {
 
     setLoading(true);
     setError("");
+    const queryToUse = search.trim();
     
     try {
       const response = await fetch('/api/recommendations/query', {
@@ -67,7 +69,7 @@ export default function CineMatchHero() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          query: search,
+          query: queryToUse,
           top_k: 8
         }),
       });
@@ -78,6 +80,7 @@ export default function CineMatchHero() {
 
       const data = await response.json();
       setRecommendations(data.recommendations || []);
+      setLastSearchQuery(queryToUse); // Save the query that produced these results
 
       // Removed IMDb fetch
     } catch (err) {
@@ -158,7 +161,7 @@ export default function CineMatchHero() {
         {recommendations.length > 0 && (
   <div className="w-full">
     <h2 className="text-white text-3xl font-bold text-center mb-8">
-      Recommendations for &quot;{search.trim()}&quot;
+      Recommendations for &quot;{lastSearchQuery}&quot;
     </h2>
     <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
   {recommendations.slice(1, 9).map((movie, index) => (
