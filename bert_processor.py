@@ -42,12 +42,12 @@ class MovieBERTProcessor:
         except Exception:
             return 0
 
-    def _can_safely_load_model(self, max_total_mb=485):
+    def _can_safely_load_model(self, max_total_mb=475):
         """
         Check if we can safely load BERT model (~150MB) without exceeding limits.
 
         Args:
-            max_total_mb: Maximum total memory allowed (default 485MB, leaves 27MB buffer below 512MB)
+            max_total_mb: Maximum total memory allowed (default 475MB, leaves 37MB buffer below 512MB)
 
         Returns:
             True if current + 150MB <= max_total_mb
