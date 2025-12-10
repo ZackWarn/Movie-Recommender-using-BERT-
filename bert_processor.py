@@ -26,6 +26,7 @@ class MovieBERTProcessor:
         self.movie_embeddings = None
         self.movies_data = None
         self.use_external = False
+        self.pca = None  # PCA transformer for 32D query encoding
 
         if not lazy_load:
             self._model = SentenceTransformer(self.model_name)
@@ -45,21 +46,24 @@ class MovieBERTProcessor:
 
     def _can_safely_load_model(self, max_total_mb=475):
         """
-        Check if we can safely load BERT model (~150MB) without exceeding limits.
+        Check if we can safely load BERT model without exceeding limits.
+        With PCA embeddings, model overhead is minimal (just query encoding).
 
         Args:
             max_total_mb: Maximum total memory allowed (default 475MB, leaves 37MB buffer below 512MB)
 
         Returns:
-            True if current + 150MB <= max_total_mb
+            True if current + model_overhead <= max_total_mb
         """
         current_mb = self._get_memory_mb()
-        projected_mb = current_mb + 150  # BERT model is ~150MB
+        # With PCA, model is loaded temporarily - much lower overhead
+        model_overhead = 2 if self.pca is not None else 150
+        projected_mb = current_mb + model_overhead
         safe = projected_mb <= max_total_mb
 
         logger.info(
             f"Memory check: {current_mb:.1f}MB current, "
-            f"{projected_mb:.1f}MB projected with model, "
+            f"{projected_mb:.1f}MB projected (overhead: {model_overhead}MB), "
             f"{'SAFE' if safe else 'UNSAFE'} (limit: {max_total_mb}MB)"
         )
 
@@ -80,7 +84,7 @@ class MovieBERTProcessor:
     def encode(self, texts: List[str], force_semantic=False):
         """
         Encode texts using hybrid approach:
-        - If force_semantic=True and memory allows, use BERT model
+        - If force_semantic=True and memory allows, use BERT model with PCA reduction
         - Otherwise, return zeros (triggers keyword fallback in recommendation engine)
         """
         if not isinstance(texts, list):
@@ -91,16 +95,26 @@ class MovieBERTProcessor:
             try:
                 logger.info("Using BERT model for semantic encoding (memory allows)")
                 gc.collect()  # Clean up before loading model
-                embeddings = self.model.encode(
+                
+                # Encode with full model (384D)
+                embeddings_384d = self.model.encode(
                     texts, batch_size=Config.ENCODING_BATCH_SIZE
                 )
-                return np.array(embeddings, dtype=np.float32)
+                
+                # If using PCA-reduced embeddings, transform query to same dimensionality
+                if self.pca is not None:
+                    embeddings_reduced = self.pca.transform(embeddings_384d)
+                    logger.info(f"Query encoded and reduced to {embeddings_reduced.shape[1]}D using PCA")
+                    return np.array(embeddings_reduced, dtype=np.float32)
+                
+                return np.array(embeddings_384d, dtype=np.float32)
             except Exception as e:
                 logger.warning(f"Failed to use BERT model: {e}, falling back to zeros")
 
         # Fallback: return zeros (triggers keyword matching)
         logger.info("Using zero embeddings (triggers keyword matching fallback)")
-        embedding_dim = 384  # paraphrase-MiniLM-L3-v2 dimension
+        # Return dimension matching our movie embeddings (32D if PCA, 384D otherwise)
+        embedding_dim = 32 if self.pca is not None else 384
         return np.zeros((len(texts), embedding_dim), dtype=np.float32)
 
     def _encode_external(self, texts: List[str]):
@@ -179,7 +193,8 @@ class MovieBERTProcessor:
 
         for i in range(0, len(movie_texts), batch_size):
             batch = movie_texts[i : i + batch_size]
-            batch_embeddings = self.encode(batch)
+            # Force semantic encoding during generation so we persist real vectors
+            batch_embeddings = self.encode(batch, force_semantic=True)
             embeddings.append(batch_embeddings)
 
             if (i // batch_size + 1) % 10 == 0:
@@ -191,8 +206,8 @@ class MovieBERTProcessor:
         print(
             f"Reducing embeddings from {self.movie_embeddings.shape[1]}D to 32D using PCA..."
         )
-        pca = PCA(n_components=32)
-        self.movie_embeddings = pca.fit_transform(self.movie_embeddings).astype(
+        self.pca = PCA(n_components=32)
+        self.movie_embeddings = self.pca.fit_transform(self.movie_embeddings).astype(
             np.float32
         )
         print(f"Embeddings reduced to {self.movie_embeddings.shape}")
@@ -203,8 +218,12 @@ class MovieBERTProcessor:
         return self.movie_embeddings
 
     def save_embeddings(self, filepath="movie_embeddings.pkl"):
-        """Save embeddings and movie data"""
-        data = {"embeddings": self.movie_embeddings, "movies_data": self.movies_data}
+        """Save embeddings, movie data, and PCA transformer"""
+        data = {
+            "embeddings": self.movie_embeddings,
+            "movies_data": self.movies_data,
+            "pca": self.pca  # Save PCA transformer for query encoding
+        }
         resolved_path = (
             filepath
             if os.path.isabs(filepath)
@@ -243,6 +262,11 @@ class MovieBERTProcessor:
         self._embeddings_file = candidate_path
         self._embeddings_shape = embeddings.shape
         self._embeddings_dtype = embeddings.dtype
+
+        # Load PCA transformer if present (for query encoding)
+        self.pca = data.get("pca", None)
+        if self.pca is not None:
+            logger.info(f"Loaded PCA transformer: {self.pca.n_components_}D reduction")
 
         # Store only the movie data, not embeddings
         self.movie_embeddings = None
