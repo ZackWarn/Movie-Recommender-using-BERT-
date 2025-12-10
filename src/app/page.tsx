@@ -52,6 +52,7 @@ export default function CineMatchHero() {
   const [recommendations, setRecommendations] = useState<MovieType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [hasSearched, setHasSearched] = useState(false); // Track if user has searched
   // IMDb posters removed per request
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -60,6 +61,7 @@ export default function CineMatchHero() {
 
     setLoading(true);
     setError("");
+    setHasSearched(true); // Mark that user has searched
     const queryToUse = search.trim();
     
     try {
@@ -135,17 +137,17 @@ export default function CineMatchHero() {
           </form>
         </div>
 
-        {recommendations.length === 0 && (
-  <div className="flex flex-col items-center mt-8 mb-2">
-    <span className="text-purple-200 text-6xl mb-4">🎬</span>
-    <h2 className="text-white text-2xl font-bold mb-2 text-center">
-      Ready to discover amazing movies?
-    </h2>
-    <p className="text-purple-200 text-center mb-3">
-      Search for a movie above to get personalized recommendations
-    </p>
-  </div>
-)}
+        {recommendations.length === 0 && !loading && (
+          <div className="flex flex-col items-center mt-8 mb-2">
+            <span className="text-purple-200 text-6xl mb-4">🎬</span>
+            <h2 className="text-white text-2xl font-bold mb-2 text-center">
+              Ready to discover amazing movies?
+            </h2>
+            <p className="text-purple-200 text-center mb-3">
+              Search for a movie above to get personalized recommendations
+            </p>
+          </div>
+        )}
 
 
         {/* Error Message */}
@@ -155,7 +157,31 @@ export default function CineMatchHero() {
           </div>
         )}
 
-       
+        {/* Loading skeletons while waiting for results */}
+        {loading && (
+          <div className="w-full">
+            <h2 className="text-white text-3xl font-bold text-center mb-8">
+              Finding movies...
+            </h2>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
+              {Array.from({ length: 8 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/10 animate-pulse"
+                >
+                  <div className="h-6 w-3/4 bg-white/20 rounded mb-3" />
+                  <div className="h-4 w-1/2 bg-white/10 rounded mb-5" />
+                  <div className="flex gap-2 mb-4">
+                    {[0, 1, 2, 3].map((pill) => (
+                      <div key={pill} className="h-6 w-16 bg-white/10 rounded-full" />
+                    ))}
+                  </div>
+                  <div className="h-4 w-24 bg-white/15 rounded" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Recommendations Section */}
         {recommendations.length > 0 && (
