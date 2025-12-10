@@ -53,6 +53,7 @@ export default function CineMatchHero() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [hasSearched, setHasSearched] = useState(false); // Track if user has searched
+  const MIN_SKELETON_MS = 2000; // ensure skeleton shows for at least 2s
   // IMDb posters removed per request
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -62,7 +63,9 @@ export default function CineMatchHero() {
     setLoading(true);
     setError("");
     setHasSearched(true); // Mark that user has searched
+    setRecommendations([]); // Clear prior results to avoid showing old cards during new search
     const queryToUse = search.trim();
+    const start = performance.now();
     
     try {
       const response = await fetch('/api/recommendations/query', {
@@ -89,6 +92,11 @@ export default function CineMatchHero() {
       setError('Failed to get recommendations. Please try again.');
       console.error('Search error:', err);
     } finally {
+      const elapsed = performance.now() - start;
+      const remaining = Math.max(MIN_SKELETON_MS - elapsed, 0);
+      if (remaining > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remaining));
+      }
       setLoading(false);
     }
   };
@@ -163,20 +171,20 @@ export default function CineMatchHero() {
             <h2 className="text-white text-3xl font-bold text-center mb-8">
               Finding movies...
             </h2>
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-5">
               {Array.from({ length: 8 }).map((_, idx) => (
                 <div
                   key={idx}
-                  className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/10 animate-pulse"
+                  className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10 min-h-[220px]"
                 >
-                  <div className="h-6 w-3/4 bg-white/20 rounded mb-3" />
-                  <div className="h-4 w-1/2 bg-white/10 rounded mb-5" />
-                  <div className="flex gap-2 mb-4">
-                    {[0, 1, 2, 3].map((pill) => (
-                      <div key={pill} className="h-6 w-16 bg-white/10 rounded-full" />
+                  <div className="h-5 w-3/4 rounded mb-2 shimmer" />
+                  <div className="h-4 w-1/2 rounded mb-3 shimmer" />
+                  <div className="flex gap-2 mb-3">
+                    {[0, 1, 2].map((pill) => (
+                      <div key={pill} className="h-6 w-16 rounded-full shimmer" />
                     ))}
                   </div>
-                  <div className="h-4 w-24 bg-white/15 rounded" />
+                  <div className="h-4 w-24 rounded shimmer" />
                 </div>
               ))}
             </div>
@@ -184,13 +192,13 @@ export default function CineMatchHero() {
         )}
 
         {/* Recommendations Section */}
-        {recommendations.length > 0 && (
+        {recommendations.length > 0 && !loading && (
   <div className="w-full">
     <h2 className="text-white text-3xl font-bold text-center mb-8">
       Recommendations for &quot;{lastSearchQuery}&quot;
     </h2>
     <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
-  {recommendations.slice(1, 9).map((movie, index) => (
+  {recommendations.slice(0, 8).map((movie, index) => (
     <MovieCard key={movie.movieId || index} movie={movie} index={index + 1} />
   ))}
 </div>
