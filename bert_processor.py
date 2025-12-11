@@ -44,11 +44,11 @@ class MovieBERTProcessor:
         except Exception:
             return 0
 
-    def _can_safely_load_model(self, max_total_mb=420):
+    def _can_safely_load_model(self, max_total_mb=440):
         """
         Check if we can safely load BERT model without exceeding limits.
-        With all-MiniLM-L6-v2 (~90MB), threshold is 420MB for safety.
-        With 3k movies at ~329MB base, leaves 91MB for model loading.
+        With all-MiniLM-L6-v2 (~90MB), threshold is 440MB for safety.
+        With 3k movies at ~335MB base, allows 90MB model + 15MB buffer.
 
         Args:
             max_total_mb: Maximum total memory allowed (default 450MB for safety)
