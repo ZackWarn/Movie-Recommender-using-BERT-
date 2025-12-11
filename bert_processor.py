@@ -44,17 +44,22 @@ class MovieBERTProcessor:
         except Exception:
             return 0
 
-    def _can_safely_load_model(self, max_total_mb=475):
+    def _can_safely_load_model(self, max_total_mb=400):
         """
         Check if we can safely load BERT model without exceeding limits.
         With PCA embeddings, model overhead is minimal (just query encoding).
 
         Args:
-            max_total_mb: Maximum total memory allowed (default 475MB, leaves 37MB buffer below 512MB)
+            max_total_mb: Maximum total memory allowed (default 450MB for safety)
 
         Returns:
             True if current + model_overhead <= max_total_mb
         """
+        # If keyword-only mode is enabled, never load BERT
+        if Config.KEYWORD_ONLY_MODE:
+            logger.info("KEYWORD_ONLY_MODE enabled - skipping BERT model loading")
+            return False
+
         current_mb = self._get_memory_mb()
         # With PCA, model is loaded temporarily - much lower overhead
         model_overhead = 2 if self.pca is not None else 150
@@ -95,18 +100,20 @@ class MovieBERTProcessor:
             try:
                 logger.info("Using BERT model for semantic encoding (memory allows)")
                 gc.collect()  # Clean up before loading model
-                
+
                 # Encode with full model (384D)
                 embeddings_384d = self.model.encode(
                     texts, batch_size=Config.ENCODING_BATCH_SIZE
                 )
-                
+
                 # If using PCA-reduced embeddings, transform query to same dimensionality
                 if self.pca is not None:
                     embeddings_reduced = self.pca.transform(embeddings_384d)
-                    logger.info(f"Query encoded and reduced to {embeddings_reduced.shape[1]}D using PCA")
+                    logger.info(
+                        f"Query encoded and reduced to {embeddings_reduced.shape[1]}D using PCA"
+                    )
                     return np.array(embeddings_reduced, dtype=np.float32)
-                
+
                 return np.array(embeddings_384d, dtype=np.float32)
             except Exception as e:
                 logger.warning(f"Failed to use BERT model: {e}, falling back to zeros")
@@ -222,7 +229,7 @@ class MovieBERTProcessor:
         data = {
             "embeddings": self.movie_embeddings,
             "movies_data": self.movies_data,
-            "pca": self.pca  # Save PCA transformer for query encoding
+            "pca": self.pca,  # Save PCA transformer for query encoding
         }
         resolved_path = (
             filepath
