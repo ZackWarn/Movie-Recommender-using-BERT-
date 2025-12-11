@@ -44,10 +44,11 @@ class MovieBERTProcessor:
         except Exception:
             return 0
 
-    def _can_safely_load_model(self, max_total_mb=400):
+    def _can_safely_load_model(self, max_total_mb=420):
         """
         Check if we can safely load BERT model without exceeding limits.
-        With PCA embeddings, model overhead is minimal (just query encoding).
+        With all-MiniLM-L6-v2 (~90MB), threshold is 420MB for safety.
+        With 3k movies at ~329MB base, leaves 91MB for model loading.
 
         Args:
             max_total_mb: Maximum total memory allowed (default 450MB for safety)
@@ -61,8 +62,8 @@ class MovieBERTProcessor:
             return False
 
         current_mb = self._get_memory_mb()
-        # With PCA, model is loaded temporarily - much lower overhead
-        model_overhead = 2 if self._model is not None else 150
+        # all-MiniLM-L6-v2 overhead: 2MB if already loaded, 90MB if loading fresh
+        model_overhead = 2 if self._model is not None else 90
         projected_mb = current_mb + model_overhead
         safe = projected_mb <= max_total_mb
 

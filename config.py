@@ -10,8 +10,8 @@ class Config:
     RAPIDAPI_IMDB_HOST: str = "imdb8.p.rapidapi.com"
 
     # Model configuration (local-only)
-    # Use a smaller model for faster startup on limited environments
-    BERT_MODEL_NAME = "sentence-transformers/paraphrase-MiniLM-L3-v2"
+    # Use all-MiniLM-L6-v2 for ~90MB memory footprint (fits in Render 512MB)
+    BERT_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
     EMBEDDINGS_FILE = "movie_embeddings.pkl"
     ENCODING_BATCH_SIZE: int = 64
     PREWARM_MODEL: bool = False
@@ -31,8 +31,8 @@ class Config:
     HF_INFERENCE_ENDPOINT: str = (
         f"https://api-inference.huggingface.co/pipeline/feature-extraction/{BERT_MODEL_NAME}"  # Recommendation Configuration
     )
-    DEFAULT_TOP_K: int = 10
-    MAX_SEARCH_RESULTS: int = 20
+    DEFAULT_TOP_K: int = 8
+    MAX_SEARCH_RESULTS: int = 8
 
     # API Rate Limiting
     API_REQUEST_DELAY: float = 1.0  # seconds between API requests
