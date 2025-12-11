@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def reduce_dataset(target_movies=3000, min_ratings=50):
+def reduce_dataset(target_movies=2000, min_ratings=50):
     """
     Reduce dataset to top N movies by popularity and quality.
 
@@ -23,7 +23,7 @@ def reduce_dataset(target_movies=3000, min_ratings=50):
     4. Update both movies.csv and ratings.csv
 
     Args:
-        target_movies: Number of movies to keep (default: 3000)
+        target_movies: Number of movies to keep (default: 2000)
         min_ratings: Minimum number of ratings required (default: 50)
     """
     logger.info(f"Starting dataset reduction to {target_movies} movies...")
@@ -96,8 +96,8 @@ def reduce_dataset(target_movies=3000, min_ratings=50):
 
 if __name__ == "__main__":
     try:
-        # Reduce to 3k movies
-        reduce_dataset(target_movies=3000, min_ratings=50)
+        # Reduce to 2k movies
+        reduce_dataset(target_movies=2000, min_ratings=50)
 
         # Regenerate embeddings with reduced dataset
         logger.info("\n" + "=" * 60)
