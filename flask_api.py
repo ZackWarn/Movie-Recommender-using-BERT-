@@ -39,16 +39,16 @@ def log_memory(stage=""):
 
 
 def get_engine():
-    """Get or create the recommendation engine (eager loading on Render)"""
+    """Get or create the recommendation engine (lazy loading for fast startup)"""
     global engine
     if engine is None:
         try:
             log_memory("before engine init")
             logger.info("Initializing recommendation engine...")
-            # Load BERT model at startup (not lazy) to cache it in memory for all requests
-            bert_processor = MovieBERTProcessor(lazy_load=False)
+            # Use lazy_load=True for fast startup and health check pass
+            bert_processor = MovieBERTProcessor(lazy_load=True)
             log_memory("after bert_processor init")
-            logger.info("Recommendation engine initialized with BERT model loaded")
+            logger.info("Recommendation engine initialized (BERT will load on first request)")
             engine = MovieRecommendationEngine(bert_processor, use_imdb=False)
             logger.info("Engine ready")
             log_memory("startup complete")
