@@ -44,11 +44,11 @@ class MovieBERTProcessor:
         except Exception:
             return 0
 
-    def _can_safely_load_model(self, max_total_mb=400):
+    def _can_safely_load_model(self, max_total_mb=380):
         """
         Check if we can safely load BERT model without exceeding limits.
-        With TinyBERT (~60MB), threshold 400MB keeps us below 512MB cap.
-        With ~335MB base for 3k movies, leaves ~65MB for model loading.
+        With TinyBERT (~60MB), threshold 380MB gives 60MB safety margin.
+        Conservative: accounts for Python fragmentation & hidden overhead.
 
         Args:
             max_total_mb: Maximum total memory allowed (default 450MB for safety)
