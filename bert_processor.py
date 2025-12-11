@@ -62,7 +62,7 @@ class MovieBERTProcessor:
 
         current_mb = self._get_memory_mb()
         # With PCA, model is loaded temporarily - much lower overhead
-        model_overhead = 2 if self.pca is not None else 150
+        model_overhead = 2 if self._model is not None else 150
         projected_mb = current_mb + model_overhead
         safe = projected_mb <= max_total_mb
 
