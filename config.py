@@ -10,8 +10,8 @@ class Config:
     RAPIDAPI_IMDB_HOST: str = "imdb8.p.rapidapi.com"
 
     # Model configuration (local-only)
-    # Use all-MiniLM-L6-v2 for ~90MB memory footprint (fits in Render 512MB)
-    BERT_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+    # Use TinyBERT (~60MB) to stay under 512MB on Render
+    BERT_MODEL_NAME = "sentence-transformers/paraphrase-TinyBERT-L6-v2"
     EMBEDDINGS_FILE = "movie_embeddings.pkl"
     ENCODING_BATCH_SIZE: int = 64
     PREWARM_MODEL: bool = False

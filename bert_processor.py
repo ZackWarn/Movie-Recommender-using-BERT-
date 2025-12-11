@@ -44,11 +44,11 @@ class MovieBERTProcessor:
         except Exception:
             return 0
 
-    def _can_safely_load_model(self, max_total_mb=440):
+    def _can_safely_load_model(self, max_total_mb=400):
         """
         Check if we can safely load BERT model without exceeding limits.
-        With all-MiniLM-L6-v2 (~90MB), threshold is 440MB for safety.
-        With 3k movies at ~335MB base, allows 90MB model + 15MB buffer.
+        With TinyBERT (~60MB), threshold 400MB keeps us below 512MB cap.
+        With ~335MB base for 3k movies, leaves ~65MB for model loading.
 
         Args:
             max_total_mb: Maximum total memory allowed (default 450MB for safety)
@@ -62,8 +62,8 @@ class MovieBERTProcessor:
             return False
 
         current_mb = self._get_memory_mb()
-        # all-MiniLM-L6-v2 overhead: 2MB if already loaded, 90MB if loading fresh
-        model_overhead = 2 if self._model is not None else 90
+        # TinyBERT overhead: 2MB if already loaded, ~60MB if loading fresh
+        model_overhead = 2 if self._model is not None else 60
         projected_mb = current_mb + model_overhead
         safe = projected_mb <= max_total_mb
 
