@@ -224,28 +224,20 @@ class MovieBERTProcessor:
 
         print("Embeddings generated successfully!")
         return self.movie_embeddings
-                            logger.info(
-                                "HF Space success (PCA)",
-                                extra={
-                                    "count": len(embeddings),
-                                    "dim": embeddings_reduced.shape[1],
-                                },
-                            )
+
+    def save_embeddings(self, filepath="movie_embeddings.pkl"):
+        """Save embeddings, movie data, and PCA transformer"""
+        data = {
             "embeddings": self.movie_embeddings,
             "movies_data": self.movies_data,
-                        logger.info(
-                            "HF Space success",
-                            extra={"count": len(embeddings)},
-                        )
+            "pca": self.pca,  # Save PCA transformer for query encoding
+        }
+        resolved_path = (
             filepath
             if os.path.isabs(filepath)
-                        logger.warning(
-                            "HF Space error",
-                            extra={
-                                "status": response.status_code,
-                                "attempt": attempt + 1,
-                            },
-                        )
+            else os.path.join(os.path.dirname(os.path.abspath(__file__)), filepath)
+        )
+        with open(resolved_path, "wb") as f:
             pickle.dump(data, f)
         print(f"Embeddings saved to {resolved_path}")
 

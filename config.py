@@ -18,19 +18,17 @@ class Config:
 
     # Memory-constrained mode for Render free tier (512MB limit)
     # When true, uses keyword-only matching (no BERT loading)
-    KEYWORD_ONLY_MODE: bool = (
-        os.getenv("KEYWORD_ONLY_MODE", "false").lower() == "true"
-    )
+    KEYWORD_ONLY_MODE: bool = os.getenv("KEYWORD_ONLY_MODE", "false").lower() == "true"
 
     # External embeddings via HF Space (default to true)
     USE_EXTERNAL_EMBEDDINGS: bool = (
         os.getenv("USE_EXTERNAL_EMBEDDINGS", "true").lower() == "true"
     )
     HF_API_TOKEN: Optional[str] = os.getenv("HF_API_TOKEN")
-    
+
     # HF Space endpoint for MiniLM embeddings (e.g., https://username-minilm-space.hf.space)
     HF_SPACE_ENDPOINT: Optional[str] = os.getenv("HF_SPACE_ENDPOINT")
-    
+
     # HF Inference API endpoint (default or custom)
     HF_INFERENCE_ENDPOINT: str = (
         f"https://api-inference.huggingface.co/pipeline/feature-extraction/{BERT_MODEL_NAME}"
