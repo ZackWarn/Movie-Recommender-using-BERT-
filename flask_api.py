@@ -24,38 +24,34 @@ CORS(
 engine = None
 
 
+def log_memory(stage=""):
+    """Log current memory usage"""
+    try:
+        import psutil
+        import os
+
+        process = psutil.Process(os.getpid())
+        mem_mb = process.memory_info().rss / 1024 / 1024
+        logger.info(f"Memory at {stage}: {mem_mb:.2f} MB")
+        return mem_mb
+    except ImportError:
+        return None
+
+
 def get_engine():
-    """Get or create the recommendation engine (lazy loading)"""
+    """Get or create the recommendation engine (lazy loading for fast startup)"""
     global engine
     if engine is None:
         try:
+            log_memory("before engine init")
             logger.info("Initializing recommendation engine...")
-            # Use lazy_load=True to skip loading BERT model initially
+            # Use lazy_load=True for fast startup and health check pass
             bert_processor = MovieBERTProcessor(lazy_load=True)
-            logger.info("Loading embeddings...")
-            bert_processor.load_embeddings()
-            logger.info("Creating recommendation engine...")
+            log_memory("after bert_processor init")
+            logger.info("Recommendation engine initialized (BERT will load on first request)")
             engine = MovieRecommendationEngine(bert_processor, use_imdb=False)
-
-            # Pre-warm the BERT model with a dummy encoding to avoid first-request timeout
-            logger.info("Pre-warming BERT model...")
-            _ = engine.bert_processor.model.encode(
-                ["warmup query"], show_progress_bar=False
-            )
-            logger.info("BERT model ready")
-
-            logger.info("Recommendation engine initialized successfully")
-
-            # Log memory usage
-            try:
-                import psutil
-                import os
-
-                process = psutil.Process(os.getpid())
-                mem_mb = process.memory_info().rss / 1024 / 1024
-                logger.info(f"Current memory usage: {mem_mb:.2f} MB")
-            except ImportError:
-                logger.warning("psutil not available for memory monitoring")
+            logger.info("Engine ready")
+            log_memory("startup complete")
         except Exception as e:
             logger.error(f"Failed to initialize recommendation engine: {e}")
             raise
@@ -114,21 +110,58 @@ def health_check():
     return jsonify({"status": "healthy", "imdb_available": Config.validate_config()})
 
 
-@app.route("/api/recommendations/query", methods=["POST"])
+@app.route("/api/recommendations/query", methods=["GET", "POST"])
 def get_recommendations_by_query():
-    """Get recommendations based on natural language query"""
+    """Get recommendations based on natural language query.
+
+    Accepts POST with JSON/form body or GET with query params for easier testing.
+    """
     try:
-        data = request.get_json()
-        query = data.get("query", "").strip()
-        top_k = data.get("top_k", 10)
+        logger.info("Received recommendation query request")
+
+        query = ""
+        top_k = 8
+
+        if request.method == "GET":
+            query = (request.args.get("query", "") or "").strip()
+            top_k = request.args.get("top_k", 8)
+        else:  # POST
+            data = request.get_json(silent=True) or {}
+            if not data:
+                # Fallback to form data if sent as form-encoded
+                data = request.form or {}
+            query = (data.get("query", "") or "").strip()
+            top_k = data.get("top_k", 8)
+
+        try:
+            top_k = int(top_k)
+        except Exception:
+            return jsonify({"error": "top_k must be an integer"}), 400
+
+        logger.info(f"Query: {query}, Top K: {top_k}")
 
         if not query:
             return jsonify({"error": "Query is required"}), 400
+        if top_k <= 0:
+            return jsonify({"error": "top_k must be positive"}), 400
 
+        logger.info("Getting engine...")
         engine = get_engine()
+        logger.info("Engine ready")
+
+        # Load embeddings only on first recommendation (lazy load to save startup memory)
+        if engine.bert_processor.movie_embeddings is None:
+            log_memory("before loading embeddings metadata")
+            logger.info("Loading embeddings...")
+            engine.bert_processor.load_embeddings()
+            log_memory("after loading metadata")
 
         # Use local recommendations only (IMDb disabled per request)
+        logger.info("Encoding query and finding recommendations...")
+        log_memory("before encoding query")
         recommendations = engine.recommend_by_query(query, top_k)
+        log_memory("after recommendations complete")
+        logger.info(f"Found {len(recommendations)} recommendations")
 
         return jsonify(
             {
@@ -139,25 +172,31 @@ def get_recommendations_by_query():
         )
 
     except Exception as e:
-        logger.error(f"Error in query recommendations: {e}")
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"Error in query recommendations: {e}", exc_info=True)
+        return jsonify({"error": str(e), "type": type(e).__name__}), 500
 
 
 @app.route("/api/recommendations/similar", methods=["POST"])
 def get_similar_movies():
     """Get similar movies based on movie ID"""
     try:
+        logger.info("Received similar movies request")
         data = request.get_json()
         movie_id = data.get("movie_id")
         top_k = data.get("top_k", 10)
+        logger.info(f"Movie ID: {movie_id}, Top K: {top_k}")
 
         if not movie_id:
             return jsonify({"error": "Movie ID is required"}), 400
 
+        logger.info("Getting engine...")
         engine = get_engine()
+        logger.info("Engine ready")
 
         # Use local recommendations only (IMDb disabled per request)
+        logger.info(f"Finding similar movies...")
         recommendations = engine.recommend_similar_movies(movie_id, top_k)
+        logger.info(f"Found {len(recommendations)} similar movies")
 
         return jsonify(
             {
@@ -168,8 +207,8 @@ def get_similar_movies():
         )
 
     except Exception as e:
-        logger.error(f"Error in similar movies: {e}")
-        return jsonify({"error": str(e)}), 500
+        logger.exception(f"Error in similar movies: {e}")
+        return jsonify({"error": str(e), "type": type(e).__name__}), 500
 
 
 @app.route("/api/search", methods=["POST"])

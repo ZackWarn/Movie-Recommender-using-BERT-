@@ -10,9 +10,8 @@ logger = logging.getLogger(__name__)
 class MovieRecommendationEngine:
     def __init__(self, bert_processor, use_imdb=True):
         self.bert_processor = bert_processor
-        self.movies = bert_processor.movies_data
-        self.embeddings = bert_processor.movie_embeddings
-        
+        # Don't store movies or embeddings directly - access via bert_processor
+
         # Initialize IMDB service if API key is available
         self.imdb_service = None
         if use_imdb and Config.validate_config():
@@ -23,99 +22,236 @@ class MovieRecommendationEngine:
                 logger.warning(f"Failed to initialize IMDB service: {e}")
                 self.imdb_service = None
 
-    def recommend_by_query(self, query, top_k=10):
-        # Encode the query to embedding vector (external HF API if configured)
-        query_embedding = self.bert_processor.encode([query])[0]
-        query_embedding = np.array(query_embedding).reshape(1, -1)
+    @property
+    def movies(self):
+        """Access movies data from bert_processor"""
+        return self.bert_processor.movies_data
 
-        embeddings = np.array(self.embeddings)
+    def recommend_by_query(self, query, top_k=8):
+        """
+        Hybrid recommendation approach:
+        1. Always get keyword-based results (fast, low memory)
+        2. If memory allows, re-rank with semantic similarity for better quality
+        3. Blend scores: 70% semantic + 30% keyword
+        """
+        # Step 1: Get keyword-based recommendations (always works, ~330MB)
+        logger.info(f"Getting keyword matches for query: {query}")
+        keyword_results = self._recommend_by_title_match(
+            query, top_k=30
+        )  # Get more for re-ranking
 
-        # Compute cosine similarities
-        similarities = cosine_similarity(query_embedding, embeddings)[0]
+        # Step 2: Check if we can enhance with semantic scoring
+        query_embedding = self.bert_processor.encode([query], force_semantic=True)[0]
+        query_embedding = np.array(query_embedding, dtype=np.float32).reshape(1, -1)
 
-        # Get indices of top_k highest similarity scores
-        top_indices = similarities.argsort()[::-1][:top_k]
+        # If we got real embeddings (not zeros), do semantic re-ranking
+        if not np.allclose(query_embedding, 0):
+            logger.info("Enhancing with semantic re-ranking")
+            return self._hybrid_rerank(query, keyword_results, query_embedding, top_k)
 
+        # Otherwise, return keyword results only
+        logger.info("Returning keyword-only results (semantic unavailable)")
+        return keyword_results[:top_k]
+
+    def _hybrid_rerank(self, query, keyword_results, query_embedding, top_k=8):
+        """Re-rank keyword results using semantic similarity for better quality"""
+        if not keyword_results:
+            return []
+
+        # Get movie IDs from keyword results
+        movie_ids = [r["movieId"] for r in keyword_results]
+
+        # Get indices of these movies in our dataset
+        indices = []
+        keyword_scores = {}
+        for i, result in enumerate(keyword_results):
+            movie_idx_list = self.movies.index[
+                self.movies["movieId"] == result["movieId"]
+            ].tolist()
+            if movie_idx_list:
+                idx = movie_idx_list[0]
+                indices.append(idx)
+                # Store normalized keyword score (0-1 range based on position)
+                keyword_scores[idx] = 1.0 - (i / len(keyword_results))
+
+        if not indices:
+            return keyword_results[:top_k]
+
+        # Get embeddings for these specific movies
+        embeddings = self.bert_processor._get_embeddings()
+        subset_embeddings = embeddings[indices]
+
+        # Ensure float32 (PCA outputs are already float32 from dimensionality reduction)
+        subset_embeddings = np.array(subset_embeddings, dtype=np.float32)
+
+        # Compute semantic similarities
+        similarities = cosine_similarity(query_embedding, subset_embeddings)[0]
+
+        # Blend scores: 70% semantic + 30% keyword
+        blended_scores = []
+        for i, idx in enumerate(indices):
+            semantic_score = float(similarities[i])
+            keyword_score = keyword_scores.get(idx, 0)
+            blended = 0.7 * semantic_score + 0.3 * keyword_score
+            blended_scores.append((idx, blended, semantic_score))
+
+        # Sort by blended score
+        blended_scores.sort(key=lambda x: x[1], reverse=True)
+
+        # Build final recommendations
         recommendations = []
-        for idx in top_indices:
-            if idx < 0 or idx >= len(self.movies):
-                continue
+        for idx, blended_score, semantic_score in blended_scores[:top_k]:
             movie = self.movies.iloc[idx]
-            recommendations.append({
-                'movieId': movie['movieId'],
-                'title': movie['clean_title'],
-                'year': movie.get('year', 'Unknown'),
-                'genres': movie.get('genres_list', []),
-                'avg_rating': movie.get('avg_rating', 0),
-                'similarity_score': float(similarities[idx])
-            })
+            recommendations.append(
+                {
+                    "movieId": movie["movieId"],
+                    "title": movie["clean_title"],
+                    "year": movie.get("year", "Unknown"),
+                    "genres": movie.get("genres_list", []),
+                    "avg_rating": movie.get("avg_rating", 0),
+                    "similarity_score": semantic_score,  # Show semantic score
+                }
+            )
+
+        logger.info(
+            f"Hybrid re-ranking complete: returned {len(recommendations)} movies"
+        )
         return recommendations
 
-    def recommend_similar_movies(self, movie_id, top_k=10):
-        movie_idx_list = self.movies.index[self.movies['movieId'] == movie_id].tolist()
+    def recommend_similar_movies(self, movie_id, top_k=8):
+        movie_idx_list = self.movies.index[self.movies["movieId"] == movie_id].tolist()
         if not movie_idx_list:
             # Movie ID not found
             return []
         movie_idx = movie_idx_list[0]
 
-        movie_embedding = np.array(self.embeddings[movie_idx]).reshape(1, -1)
-        embeddings = np.array(self.embeddings)
+        # Get embeddings on-demand
+        embeddings = self.bert_processor._get_embeddings()
 
+        # Dequantize embeddings from uint8 to float32 for similarity computation
+        embeddings = np.array(embeddings, dtype=np.float32)
+        if self.bert_processor.movie_embeddings.dtype == np.uint8:
+            # Dequantize: reverse the [0, 255] -> [-1, 1] scaling
+            # Formula: (value / 127.5) - 1
+            embeddings = (embeddings / 127.5) - 1
+
+        movie_embedding = embeddings[movie_idx].reshape(1, -1)
+
+        # Compute cosine similarities (cosine_similarity handles normalization internally)
         similarities = cosine_similarity(movie_embedding, embeddings)[0]
 
         # Sort similarities excluding the movie itself
         sorted_indices = similarities.argsort()[::-1]
-        similar_indices = [i for i in sorted_indices if i != movie_idx and 0 <= i < len(self.movies)][:top_k]
+        similar_indices = [
+            i for i in sorted_indices if i != movie_idx and 0 <= i < len(self.movies)
+        ][:top_k]
 
         results = []
         for idx in similar_indices:
             if idx < 0 or idx >= len(self.movies):
                 continue
             movie = self.movies.iloc[idx]
-            results.append({
-                'movieId': movie['movieId'],
-                'title': movie['clean_title'],
-                'year': movie.get('year', 'Unknown'),
-                'genres': movie.get('genres_list', []),
-                'avg_rating': movie.get('avg_rating', 0),
-                'similarity_score': float(similarities[idx])
-            })
+            results.append(
+                {
+                    "movieId": movie["movieId"],
+                    "title": movie["clean_title"],
+                    "year": movie.get("year", "Unknown"),
+                    "genres": movie.get("genres_list", []),
+                    "avg_rating": movie.get("avg_rating", 0),
+                    "similarity_score": float(similarities[idx]),
+                }
+            )
         return results
+
+    def _recommend_by_title_match(self, query, top_k=10):
+        """Fallback: recommend movies by matching query keywords in title/genres"""
+        query_lower = query.lower()
+        query_words = set(query_lower.split())
+
+        # Score movies based on keyword matches
+        scores = []
+        for idx, movie in self.movies.iterrows():
+            score = 0
+            title_lower = str(movie.get("clean_title", "")).lower()
+            genres = movie.get("genres_list", [])
+
+            # Title exact match
+            if query_lower in title_lower:
+                score += 10
+
+            # Title word matches
+            title_words = set(title_lower.split())
+            score += len(query_words & title_words) * 3
+
+            # Genre matches
+            genres_lower = [g.lower() for g in genres if isinstance(g, str)]
+            for word in query_words:
+                if any(word in genre for genre in genres_lower):
+                    score += 2
+
+            # Boost by rating
+            score += movie.get("avg_rating", 0) * 0.5
+
+            if score > 0:
+                scores.append((idx, score))
+
+        # Sort by score and return top_k
+        scores.sort(key=lambda x: x[1], reverse=True)
+        top_indices = [idx for idx, score in scores[:top_k]]
+
+        recommendations = []
+        for idx in top_indices:
+            movie = self.movies.iloc[idx]
+            recommendations.append(
+                {
+                    "movieId": movie["movieId"],
+                    "title": movie["clean_title"],
+                    "year": movie.get("year", "Unknown"),
+                    "genres": movie.get("genres_list", []),
+                    "avg_rating": movie.get("avg_rating", 0),
+                    "similarity_score": 0.0,  # Not using embeddings
+                }
+            )
+        return recommendations
 
     def search_movies(self, search_term, top_k=20):
         """
         Search movies by matching search_term in cleaned title (case-insensitive).
         Returns up to top_k matching movies with basic info.
         """
-        matches = self.movies[self.movies['clean_title'].str.contains(search_term, case=False, na=False)]
+        matches = self.movies[
+            self.movies["clean_title"].str.contains(search_term, case=False, na=False)
+        ]
         results = []
         for _, movie in matches.head(top_k).iterrows():
-            results.append({
-                'movieId': movie['movieId'],
-                'title': movie['clean_title'],
-                'year': movie.get('year', 'Unknown'),
-                'genres': movie.get('genres_list', []),
-                'avg_rating': movie.get('avg_rating', 0),
-            })
+            results.append(
+                {
+                    "movieId": movie["movieId"],
+                    "title": movie["clean_title"],
+                    "year": movie.get("year", "Unknown"),
+                    "genres": movie.get("genres_list", []),
+                    "avg_rating": movie.get("avg_rating", 0),
+                }
+            )
         return results
-    
+
     def _enhance_with_imdb_data(self, recommendations):
         """Enhance recommendations with IMDB data if available"""
         if not self.imdb_service:
             return recommendations
-        
+
         enhanced_recommendations = []
         for rec in recommendations:
             enhanced_rec = rec.copy()
-            
+
             try:
                 # Search for the movie in IMDB
-                imdb_results = self.imdb_service.search_movies(rec['title'], limit=1)
+                imdb_results = self.imdb_service.search_movies(rec["title"], limit=1)
                 if imdb_results:
                     # Pick best-matching IMDb result to avoid wrong first hits like "De små mænd"
                     def score_candidate(c):
-                        title_c = str(c.get('title', '') or '').lower()
-                        title_q = str(rec['title']).lower()
+                        title_c = str(c.get("title", "") or "").lower()
+                        title_q = str(rec["title"]).lower()
                         score = 0.0
                         if title_c == title_q:
                             score += 3.0
@@ -125,72 +261,77 @@ class MovieRecommendationEngine:
                             score += 0.8
                         # Prefer same year if available
                         try:
-                            yr_q = int(rec.get('year') or 0)
-                            yr_c = int(c.get('year') or 0)
+                            yr_q = int(rec.get("year") or 0)
+                            yr_c = int(c.get("year") or 0)
                             if yr_q and yr_c and yr_q == yr_c:
                                 score += 0.7
                         except Exception:
                             pass
                         # Prefer items with poster
-                        if c.get('poster_url') or c.get('image_url'):
+                        if c.get("poster_url") or c.get("image_url"):
                             score += 0.3
                         # Prefer movies over TV
-                        t = (c.get('type') or '').lower()
-                        if t in ('movie', 'tvmovie'):
+                        t = (c.get("type") or "").lower()
+                        if t in ("movie", "tvmovie"):
                             score += 0.4
                         return score
 
                     imdb_movie = max(imdb_results, key=score_candidate)
-                    enhanced_rec.update({
-                        'imdb_id': imdb_movie.get('imdb_id', ''),
-                        'imdb_rating': imdb_movie.get('rating', 0),
-                        'imdb_rating_count': imdb_movie.get('rating_count', 0),
-                        'poster_url': imdb_movie.get('poster_url') or imdb_movie.get('image_url', ''),
-                        'imdb_year': imdb_movie.get('year', ''),
-                        'actors': imdb_movie.get('actors', ''),
-                        'imdb_rank': imdb_movie.get('rank', 0)
-                    })
+                    enhanced_rec.update(
+                        {
+                            "imdb_id": imdb_movie.get("imdb_id", ""),
+                            "imdb_rating": imdb_movie.get("rating", 0),
+                            "imdb_rating_count": imdb_movie.get("rating_count", 0),
+                            "poster_url": imdb_movie.get("poster_url")
+                            or imdb_movie.get("image_url", ""),
+                            "imdb_year": imdb_movie.get("year", ""),
+                            "actors": imdb_movie.get("actors", ""),
+                            "imdb_rank": imdb_movie.get("rank", 0),
+                        }
+                    )
                     # Avoid imdb236 detail endpoints (often 404); rely on search fields for poster
             except Exception as e:
-                logger.warning(f"Failed to enhance movie {rec['title']} with IMDB data: {e}")
-            
+                logger.warning(
+                    f"Failed to enhance movie {rec['title']} with IMDB data: {e}"
+                )
+
             enhanced_recommendations.append(enhanced_rec)
-        
+
         return enhanced_recommendations
-    
+
     def recommend_by_query_with_imdb(self, query, top_k=10):
         """Get recommendations with IMDB data enhancement"""
         recommendations = self.recommend_by_query(query, top_k)
         return self._enhance_with_imdb_data(recommendations)
-    
-    def recommend_similar_movies_with_imdb(self, movie_id, top_k=10):
+
+    def recommend_similar_movies_with_imdb(self, movie_id, top_k=8):
         """Get similar movies with IMDB data enhancement"""
         recommendations = self.recommend_similar_movies(movie_id, top_k)
         return self._enhance_with_imdb_data(recommendations)
-    
+
     def search_movies_with_imdb(self, search_term, top_k=20):
         """Search movies with IMDB data enhancement"""
         recommendations = self.search_movies(search_term, top_k)
         return self._enhance_with_imdb_data(recommendations)
-    
+
     def get_trending_movies(self, limit=10):
         """Get trending movies from IMDB"""
         if not self.imdb_service:
             logger.warning("IMDB service not available")
             return []
-        
+
         try:
             return self.imdb_service.get_trending_movies(limit)
         except Exception as e:
             logger.error(f"Failed to get trending movies: {e}")
             return []
-    
+
     def search_imdb_movies(self, query, limit=10):
         """Search movies directly from IMDB"""
         if not self.imdb_service:
             logger.warning("IMDB service not available")
             return []
-        
+
         try:
             return self.imdb_service.search_and_get_details(query, limit)
         except Exception as e:
