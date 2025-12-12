@@ -89,11 +89,20 @@ class MovieBERTProcessor:
     def encode(self, texts: List[str], force_semantic=False):
         """
         Encode texts using hybrid approach:
+        - If USE_EXTERNAL_EMBEDDINGS=true, call external HF Space
         - If force_semantic=True and memory allows, use BERT model with PCA reduction
         - Otherwise, return zeros (triggers keyword fallback in recommendation engine)
         """
         if not isinstance(texts, list):
             texts = [texts]
+
+        # Use external embeddings if configured
+        if Config.USE_EXTERNAL_EMBEDDINGS and Config.HF_SPACE_ENDPOINT:
+            try:
+                logger.info(f"Using external embeddings from {Config.HF_SPACE_ENDPOINT}")
+                return self._encode_external(texts)
+            except Exception as e:
+                logger.warning(f"External embedding failed: {e}, falling back to local")
 
         # Check if we can safely load the model for semantic encoding
         if force_semantic and self._can_safely_load_model():
@@ -135,7 +144,9 @@ class MovieBERTProcessor:
         import time
 
         # Try HF Space endpoint first if configured
-        endpoint = getattr(Config, 'HF_SPACE_ENDPOINT', None) or Config.HF_INFERENCE_ENDPOINT
+        endpoint = (
+            getattr(Config, "HF_SPACE_ENDPOINT", None) or Config.HF_INFERENCE_ENDPOINT
+        )
         headers = {}
         if Config.HF_API_TOKEN:
             headers["Authorization"] = f"Bearer {Config.HF_API_TOKEN}"
@@ -144,18 +155,35 @@ class MovieBERTProcessor:
         for attempt in range(max_retries):
             try:
                 # For HF Space, use /embed endpoint
-                if hasattr(Config, 'HF_SPACE_ENDPOINT') and Config.HF_SPACE_ENDPOINT:
+                if hasattr(Config, "HF_SPACE_ENDPOINT") and Config.HF_SPACE_ENDPOINT:
                     url = f"{endpoint.rstrip('/')}/embed"
                     payload = {"texts": texts}
-                    response = requests.post(url, json=payload, headers=headers, timeout=30)
-                    
+                    response = requests.post(
+                        url, json=payload, headers=headers, timeout=30
+                    )
+
                     if response.status_code == 200:
                         result = response.json()
                         embeddings = result.get("embeddings", [])
-                        logger.info(f"HF Space API success: encoded {len(embeddings)} texts")
-                        return np.array(embeddings)
+                        embeddings_array = np.array(embeddings, dtype=np.float32)
+                        
+                        # If using PCA-reduced embeddings, transform to same dimensionality
+                        if self.pca is not None:
+                            embeddings_reduced = self.pca.transform(embeddings_array)
+                            logger.info(
+                                f"HF Space API success: encoded {len(embeddings)} texts, "
+                                f"reduced to {embeddings_reduced.shape[1]}D using PCA"
+                            )
+                            return embeddings_reduced
+                        
+                        logger.info(
+                            f"HF Space API success: encoded {len(embeddings)} texts"
+                        )
+                        return embeddings_array
                     else:
-                        logger.warning(f"HF Space error {response.status_code}, retrying...")
+                        logger.warning(
+                            f"HF Space error {response.status_code}, retrying..."
+                        )
                         time.sleep(2**attempt)
                         continue
                 else:
