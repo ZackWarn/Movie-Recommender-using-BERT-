@@ -73,29 +73,23 @@ class MovieBERTProcessor:
 
     def encode(self, texts: List[str], force_semantic=False):
         """
-        Encode texts using hybrid approach:
-        - If USE_EXTERNAL_EMBEDDINGS=true, call external HF Space
-        - If force_semantic=True and memory allows, use BERT model with PCA reduction
-        - Otherwise, return zeros (triggers keyword fallback in recommendation engine)
+        Encode texts using external HF Space embeddings. No local or keyword fallback.
+        Raises if HF_SPACE_ENDPOINT is missing or if external embedding fails.
         """
         if not isinstance(texts, list):
             texts = [texts]
 
-        # Always use external embeddings if endpoint is configured
-        if Config.HF_SPACE_ENDPOINT:
-            try:
-                logger.info(
-                    f"Using external embeddings from {Config.HF_SPACE_ENDPOINT}"
-                )
-                return self._encode_external(texts)
-            except Exception as e:
-                logger.warning(f"External embedding failed: {e}, returning zeros")
-
-        # Fallback: return zeros (triggers keyword matching)
-        logger.info("Using zero embeddings (triggers keyword matching fallback)")
-        # Return dimension matching our movie embeddings (32D if PCA, 384D otherwise)
-        embedding_dim = 32 if self.pca is not None else 384
+        if not Config.HF_SPACE_ENDPOINT:
             raise RuntimeError("HF_SPACE_ENDPOINT is not set; external embeddings unavailable")
+
+        logger.info(
+            "External encode start",
+            extra={
+                "endpoint": Config.HF_SPACE_ENDPOINT,
+                "count": len(texts),
+            },
+        )
+        return self._encode_external(texts)
 
     def _encode_external(self, texts: List[str]):
         """
