@@ -149,14 +149,9 @@ class MovieBERTProcessor:
                     response = requests.post(
                         endpoint,
                         headers=headers,
-                        logger.info(
-                            "External encode start",
-                            extra={
-                                "endpoint": Config.HF_SPACE_ENDPOINT,
-                                "count": len(texts),
-                            },
-                        )
-
+                        json={"inputs": texts, "options": {"wait_for_model": True}},
+                        timeout=30,
+                    )
                     if response.status_code == 200:
                         embeddings = response.json()
                         logger.info("HF Inference API success")
@@ -173,8 +168,7 @@ class MovieBERTProcessor:
                 time.sleep(2**attempt)
 
         # Fallback: return zeros to trigger keyword-only matching (no local model)
-        logger.info("External embeddings unavailable after retries; returning zeros")
-            raise RuntimeError("External embeddings failed after retries")
+        raise RuntimeError("External embeddings failed after retries")
 
     def prepare_movie_texts(self, movies_df):
         """Combine movie information into text descriptions"""
