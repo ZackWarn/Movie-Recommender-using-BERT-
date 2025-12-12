@@ -84,7 +84,9 @@ class MovieBERTProcessor:
         # Always use external embeddings if endpoint is configured
         if Config.HF_SPACE_ENDPOINT:
             try:
-                logger.info(f"Using external embeddings from {Config.HF_SPACE_ENDPOINT}")
+                logger.info(
+                    f"Using external embeddings from {Config.HF_SPACE_ENDPOINT}"
+                )
                 return self._encode_external(texts)
             except Exception as e:
                 logger.warning(f"External embedding failed: {e}, returning zeros")
@@ -93,7 +95,7 @@ class MovieBERTProcessor:
         logger.info("Using zero embeddings (triggers keyword matching fallback)")
         # Return dimension matching our movie embeddings (32D if PCA, 384D otherwise)
         embedding_dim = 32 if self.pca is not None else 384
-        return np.zeros((len(texts), embedding_dim), dtype=np.float32)
+            raise RuntimeError("HF_SPACE_ENDPOINT is not set; external embeddings unavailable")
 
     def _encode_external(self, texts: List[str]):
         """
@@ -128,7 +130,7 @@ class MovieBERTProcessor:
                         result = response.json()
                         embeddings = result.get("embeddings", [])
                         embeddings_array = np.array(embeddings, dtype=np.float32)
-                        
+
                         # If using PCA-reduced embeddings, transform to same dimensionality
                         if self.pca is not None:
                             embeddings_reduced = self.pca.transform(embeddings_array)
@@ -137,7 +139,7 @@ class MovieBERTProcessor:
                                 f"reduced to {embeddings_reduced.shape[1]}D using PCA"
                             )
                             return embeddings_reduced
-                        
+
                         logger.info(
                             f"HF Space API success: encoded {len(embeddings)} texts"
                         )
@@ -172,10 +174,9 @@ class MovieBERTProcessor:
                 logger.warning(f"External API error: {e}, retrying...")
                 time.sleep(2**attempt)
 
-        # Fallback to local model
-        logger.info("Falling back to local model for encoding")
-        batch_size = getattr(Config, "ENCODING_BATCH_SIZE", 32) or 32
-        return self.model.encode(texts, batch_size=batch_size)
+        # Fallback: return zeros to trigger keyword-only matching (no local model)
+        logger.info("External embeddings unavailable after retries; returning zeros")
+            raise RuntimeError("External embeddings failed after retries")
 
     def prepare_movie_texts(self, movies_df):
         """Combine movie information into text descriptions"""
