@@ -48,7 +48,7 @@ def get_engine():
             # Use lazy_load=True for fast startup and health check pass
             bert_processor = MovieBERTProcessor(lazy_load=True)
             log_memory("after bert_processor init")
-            logger.info("Recommendation engine initialized (BERT will load on first request)")
+            logger.info("Recommendation engine initialized (external embeddings enabled)")
             engine = MovieRecommendationEngine(bert_processor, use_imdb=False)
             logger.info("Engine ready")
             log_memory("startup complete")

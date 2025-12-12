@@ -22,10 +22,9 @@ class Config:
         os.getenv("KEYWORD_ONLY_MODE", "false").lower() == "true"
     )
 
-    # External API disabled by default (HF returns 410 for this model)
-    # Use local model which works reliably (~485MB peak memory, within 512MB limit)
+    # External embeddings via HF Space (default to true)
     USE_EXTERNAL_EMBEDDINGS: bool = (
-        os.getenv("USE_EXTERNAL_EMBEDDINGS", "false").lower() == "true"
+        os.getenv("USE_EXTERNAL_EMBEDDINGS", "true").lower() == "true"
     )
     HF_API_TOKEN: Optional[str] = os.getenv("HF_API_TOKEN")
     

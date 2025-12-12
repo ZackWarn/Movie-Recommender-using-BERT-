@@ -20,21 +20,13 @@ logger = logging.getLogger(__name__)
 
 class MovieBERTProcessor:
     def __init__(self, model_name: str = None, lazy_load: bool = False):
-        # Use configured model name if not explicitly provided
+        # Always use external embeddings; do not load local model
         self.model_name = model_name or Config.BERT_MODEL_NAME
         self._model = None
         self.movie_embeddings = None
         self.movies_data = None
-        self.use_external = False
+        self.use_external = True
         self.pca = None  # PCA transformer for 32D query encoding
-
-        if not lazy_load:
-            self._model = SentenceTransformer(self.model_name)
-            if getattr(Config, "PREWARM_MODEL", False):
-                try:
-                    _ = self._model.encode(["warmup"], batch_size=1)
-                except Exception:
-                    pass
 
     def _get_memory_mb(self):
         """Get current process memory usage in MB"""
@@ -76,15 +68,8 @@ class MovieBERTProcessor:
 
     @property
     def model(self) -> SentenceTransformer:
-        """Lazy load model only when needed for encoding queries"""
-        if self._model is None:
-            self._model = SentenceTransformer(self.model_name)
-            if getattr(Config, "PREWARM_MODEL", False):
-                try:
-                    _ = self._model.encode(["warmup"], batch_size=1)
-                except Exception:
-                    pass
-        return self._model
+        """Local model disabled when using external embeddings."""
+        raise RuntimeError("Local BERT model is disabled; using external embeddings")
 
     def encode(self, texts: List[str], force_semantic=False):
         """
@@ -96,36 +81,13 @@ class MovieBERTProcessor:
         if not isinstance(texts, list):
             texts = [texts]
 
-        # Use external embeddings if configured
-        if Config.USE_EXTERNAL_EMBEDDINGS and Config.HF_SPACE_ENDPOINT:
+        # Always use external embeddings if endpoint is configured
+        if Config.HF_SPACE_ENDPOINT:
             try:
                 logger.info(f"Using external embeddings from {Config.HF_SPACE_ENDPOINT}")
                 return self._encode_external(texts)
             except Exception as e:
-                logger.warning(f"External embedding failed: {e}, falling back to local")
-
-        # Check if we can safely load the model for semantic encoding
-        if force_semantic and self._can_safely_load_model():
-            try:
-                logger.info("Using BERT model for semantic encoding (memory allows)")
-                gc.collect()  # Clean up before loading model
-
-                # Encode with full model (384D)
-                embeddings_384d = self.model.encode(
-                    texts, batch_size=Config.ENCODING_BATCH_SIZE
-                )
-
-                # If using PCA-reduced embeddings, transform query to same dimensionality
-                if self.pca is not None:
-                    embeddings_reduced = self.pca.transform(embeddings_384d)
-                    logger.info(
-                        f"Query encoded and reduced to {embeddings_reduced.shape[1]}D using PCA"
-                    )
-                    return np.array(embeddings_reduced, dtype=np.float32)
-
-                return np.array(embeddings_384d, dtype=np.float32)
-            except Exception as e:
-                logger.warning(f"Failed to use BERT model: {e}, falling back to zeros")
+                logger.warning(f"External embedding failed: {e}, returning zeros")
 
         # Fallback: return zeros (triggers keyword matching)
         logger.info("Using zero embeddings (triggers keyword matching fallback)")
