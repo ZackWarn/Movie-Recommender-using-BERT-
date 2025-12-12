@@ -125,10 +125,17 @@ class MovieBERTProcessor:
         return np.zeros((len(texts), embedding_dim), dtype=np.float32)
 
     def _encode_external(self, texts: List[str]):
-        """Encode texts using Hugging Face Inference API"""
+        """
+        Encode texts using external API.
+        Supports both:
+        1. HF Inference API (Config.HF_INFERENCE_ENDPOINT)
+        2. Custom HF Space endpoint (Config.HF_SPACE_ENDPOINT)
+        """
         import requests
         import time
 
+        # Try HF Space endpoint first if configured
+        endpoint = getattr(Config, 'HF_SPACE_ENDPOINT', None) or Config.HF_INFERENCE_ENDPOINT
         headers = {}
         if Config.HF_API_TOKEN:
             headers["Authorization"] = f"Bearer {Config.HF_API_TOKEN}"
@@ -136,33 +143,44 @@ class MovieBERTProcessor:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                response = requests.post(
-                    Config.HF_INFERENCE_ENDPOINT,
-                    headers=headers,
-                    json={"inputs": texts, "options": {"wait_for_model": True}},
-                    timeout=30,
-                )
-
-                if response.status_code == 200:
-                    embeddings = response.json()
-                    logger.info("External HF API success")
-                    return np.array(embeddings)
-                elif response.status_code == 503:
-                    # Model loading, retry
-                    logger.info("External HF API 503 (model loading), retrying")
-                    time.sleep(2**attempt)
-                    continue
+                # For HF Space, use /embed endpoint
+                if hasattr(Config, 'HF_SPACE_ENDPOINT') and Config.HF_SPACE_ENDPOINT:
+                    url = f"{endpoint.rstrip('/')}/embed"
+                    payload = {"texts": texts}
+                    response = requests.post(url, json=payload, headers=headers, timeout=30)
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        embeddings = result.get("embeddings", [])
+                        logger.info(f"HF Space API success: encoded {len(embeddings)} texts")
+                        return np.array(embeddings)
+                    else:
+                        logger.warning(f"HF Space error {response.status_code}, retrying...")
+                        time.sleep(2**attempt)
+                        continue
                 else:
-                    logger.warning(
-                        "External HF API error %s, falling back to local model",
-                        response.status_code,
+                    # Standard HF Inference API
+                    response = requests.post(
+                        endpoint,
+                        headers=headers,
+                        json={"inputs": texts, "options": {"wait_for_model": True}},
+                        timeout=30,
                     )
-                    break
+
+                    if response.status_code == 200:
+                        embeddings = response.json()
+                        logger.info("HF Inference API success")
+                        return np.array(embeddings)
+                    elif response.status_code == 503:
+                        logger.info("HF API 503 (model loading), retrying")
+                        time.sleep(2**attempt)
+                        continue
+                    else:
+                        logger.warning(f"HF API error {response.status_code}")
+                        break
             except Exception as e:
-                logger.warning(
-                    "External HF API failed: %s, falling back to local model", e
-                )
-                break
+                logger.warning(f"External API error: {e}, retrying...")
+                time.sleep(2**attempt)
 
         # Fallback to local model
         logger.info("Falling back to local model for encoding")

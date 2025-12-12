@@ -28,8 +28,13 @@ class Config:
         os.getenv("USE_EXTERNAL_EMBEDDINGS", "false").lower() == "true"
     )
     HF_API_TOKEN: Optional[str] = os.getenv("HF_API_TOKEN")
+    
+    # HF Space endpoint for MiniLM embeddings (e.g., https://username-minilm-space.hf.space)
+    HF_SPACE_ENDPOINT: Optional[str] = os.getenv("HF_SPACE_ENDPOINT")
+    
+    # HF Inference API endpoint (default or custom)
     HF_INFERENCE_ENDPOINT: str = (
-        f"https://api-inference.huggingface.co/pipeline/feature-extraction/{BERT_MODEL_NAME}"  # Recommendation Configuration
+        f"https://api-inference.huggingface.co/pipeline/feature-extraction/{BERT_MODEL_NAME}"
     )
     DEFAULT_TOP_K: int = 8
     MAX_SEARCH_RESULTS: int = 8
