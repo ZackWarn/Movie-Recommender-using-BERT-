@@ -2,6 +2,25 @@
 import pandas as pd
 import numpy as np
 from collections import Counter
+import re
+
+
+def normalize_title(title):
+    """Convert titles like 'Dark Knight Rises, The' to 'The Dark Knight Rises'"""
+    # First remove year if present
+    title_without_year = re.sub(r"\s*\(\d{4}\)$", "", title)
+
+    # Check if title ends with ", The", ", A", or ", An"
+    article_pattern = r"^(.+),\s+(The|A|An)$"
+    match = re.match(article_pattern, title_without_year, re.IGNORECASE)
+
+    if match:
+        main_title = match.group(1)
+        article = match.group(2)
+        return f"{article} {main_title}"
+
+    return title_without_year
+
 
 def load_and_preprocess_data():
     # Load datasets
@@ -13,7 +32,7 @@ def load_and_preprocess_data():
     
     # Clean movie titles and extract years
     movies['year'] = movies['title'].str.extract(r'\((\d{4})\)$')
-    movies['clean_title'] = movies['title'].str.replace(r'\s*\(\d{4}\)$', '', regex=True)
+    movies['clean_title'] = movies['title'].apply(normalize_title)
     
     # Process genres
     movies['genres_list'] = movies['genres'].str.split('|')

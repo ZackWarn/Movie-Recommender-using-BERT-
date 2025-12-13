@@ -58,7 +58,7 @@ class MovieRecommendationEngine:
                 "year": movie.get("year", "Unknown"),
                 "genres": movie.get("genres_list", []),
                 "avg_rating": movie.get("avg_rating", 0),
-                "similarity_score": float(similarities[idx]),
+                "score": float(similarities[idx]),
             })
 
         logger.info(f"Semantic ranking complete: returned {len(recommendations)} movies")
