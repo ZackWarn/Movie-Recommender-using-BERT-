@@ -175,10 +175,12 @@ export default function CineMatchHero() {
     <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
       {Array.from({ length: 8 }).map((_, idx) => (
         <SkeletonCard key={idx} />
+        // or <SkeletonCardStaggered key={idx} index={idx} />
       ))}
     </div>
   </div>
 )}
+
 
         {/* Recommendations Section */}
         {recommendations.length > 0 && !loading && (
