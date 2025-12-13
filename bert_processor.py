@@ -80,7 +80,9 @@ class MovieBERTProcessor:
             texts = [texts]
 
         if not Config.HF_SPACE_ENDPOINT:
-            raise RuntimeError("HF_SPACE_ENDPOINT is not set; external embeddings unavailable")
+            raise RuntimeError(
+                "HF_SPACE_ENDPOINT is not set; external embeddings unavailable"
+            )
 
         logger.info(
             "External encode start",
