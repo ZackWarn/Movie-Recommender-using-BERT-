@@ -1,4 +1,4 @@
-export function SkeletonCardMinimal() {
+export function SkeletonCard() {
   return (
     <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
       {/* Compact skeleton */}
