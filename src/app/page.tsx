@@ -52,6 +52,8 @@ export default function CineMatchHero() {
   const [recommendations, setRecommendations] = useState<MovieType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [hasSearched, setHasSearched] = useState(false); // Track if user has searched
+  const MIN_SKELETON_MS = 2000; // ensure skeleton shows for at least 2s
   // IMDb posters removed per request
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -60,7 +62,10 @@ export default function CineMatchHero() {
 
     setLoading(true);
     setError("");
+    setHasSearched(true); // Mark that user has searched
+    setRecommendations([]); // Clear prior results to avoid showing old cards during new search
     const queryToUse = search.trim();
+    const start = performance.now();
     
     try {
       const response = await fetch('/api/recommendations/query', {
@@ -87,6 +92,11 @@ export default function CineMatchHero() {
       setError('Failed to get recommendations. Please try again.');
       console.error('Search error:', err);
     } finally {
+      const elapsed = performance.now() - start;
+      const remaining = Math.max(MIN_SKELETON_MS - elapsed, 0);
+      if (remaining > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remaining));
+      }
       setLoading(false);
     }
   };
@@ -135,17 +145,17 @@ export default function CineMatchHero() {
           </form>
         </div>
 
-        {recommendations.length === 0 && (
-  <div className="flex flex-col items-center mt-8 mb-2">
-    <span className="text-purple-200 text-6xl mb-4">🎬</span>
-    <h2 className="text-white text-2xl font-bold mb-2 text-center">
-      Ready to discover amazing movies?
-    </h2>
-    <p className="text-purple-200 text-center mb-3">
-      Search for a movie above to get personalized recommendations
-    </p>
-  </div>
-)}
+        {recommendations.length === 0 && !loading && (
+          <div className="flex flex-col items-center mt-8 mb-2">
+            <span className="text-purple-200 text-6xl mb-4">🎬</span>
+            <h2 className="text-white text-2xl font-bold mb-2 text-center">
+              Ready to discover amazing movies?
+            </h2>
+            <p className="text-purple-200 text-center mb-3">
+              Search for a movie above to get personalized recommendations
+            </p>
+          </div>
+        )}
 
 
         {/* Error Message */}
@@ -155,16 +165,40 @@ export default function CineMatchHero() {
           </div>
         )}
 
-       
+        {/* Loading skeletons while waiting for results */}
+        {loading && (
+          <div className="w-full">
+            <h2 className="text-white text-3xl font-bold text-center mb-8">
+              Finding movies...
+            </h2>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-5">
+              {Array.from({ length: 8 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10 min-h-[220px]"
+                >
+                  <div className="h-5 w-3/4 rounded mb-2 shimmer" />
+                  <div className="h-4 w-1/2 rounded mb-3 shimmer" />
+                  <div className="flex gap-2 mb-3">
+                    {[0, 1, 2].map((pill) => (
+                      <div key={pill} className="h-6 w-16 rounded-full shimmer" />
+                    ))}
+                  </div>
+                  <div className="h-4 w-24 rounded shimmer" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Recommendations Section */}
-        {recommendations.length > 0 && (
+        {recommendations.length > 0 && !loading && (
   <div className="w-full">
     <h2 className="text-white text-3xl font-bold text-center mb-8">
       Recommendations for &quot;{lastSearchQuery}&quot;
     </h2>
     <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
-  {recommendations.slice(1, 9).map((movie, index) => (
+  {recommendations.slice(0, 8).map((movie, index) => (
     <MovieCard key={movie.movieId || index} movie={movie} index={index + 1} />
   ))}
 </div>

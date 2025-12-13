@@ -33,12 +33,14 @@ export default function MovieCard({ movie, index }: MovieCardProps) {
         {/* Movie Information */}
         <div className="flex-1 space-y-4">
           {/* Title and Year */}
-          <div className="flex items-center space-x-2 mb-2">
-  <h3 className="text-2xl font-bold text-white">
-    {index && `${index}. `}{movie.title}
-  </h3>
-  <span className="text-purple-200 text-lg">({displayYear})</span>
-</div>
+          <div className="flex flex-wrap items-baseline gap-2 mb-2">
+            <h3 className="text-2xl font-bold text-white leading-tight">
+              {index && `${index}. `}{movie.title}
+            </h3>
+            {displayYear !== 'N/A' && (
+              <span className="text-purple-200 text-base">({displayYear})</span>
+            )}
+          </div>
 
 
 
@@ -48,11 +50,11 @@ export default function MovieCard({ movie, index }: MovieCardProps) {
 {displayGenres.length > 0 && (
   <div>
     <p className="text-purple-200 text-sm mb-2">Genres:</p>
-    <div className="flex flex-row gap-2 overflow-x-auto whitespace-nowrap">
+    <div className="flex flex-row flex-wrap gap-2 overflow-hidden">
       {displayGenres.slice(0, 4).map((genre, idx) => (
         <span
           key={idx}
-          className="bg-purple-800/40 text-purple-100 px-1 py-1 rounded-full text-sm"
+          className="inline-flex items-center bg-purple-800/40 text-purple-100 px-3 py-1 rounded-full text-sm leading-tight"
         >
           {genre}
         </span>
