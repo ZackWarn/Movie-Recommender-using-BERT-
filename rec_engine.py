@@ -29,189 +29,39 @@ class MovieRecommendationEngine:
 
     def recommend_by_query(self, query, top_k=8):
         """
-        Hybrid recommendation approach:
-        1. Always get keyword-based results (fast, low memory)
-        2. If memory allows, re-rank with semantic similarity for better quality
-        3. Blend scores: 70% semantic + 30% keyword
+        Pure semantic similarity-based recommendations using HF Space embeddings.
         """
-        # Step 1: Get keyword-based recommendations (always works, ~330MB)
-        logger.info(f"Getting keyword matches for query: {query}")
-        keyword_results = self._recommend_by_title_match(
-            query, top_k=30
-        )  # Get more for re-ranking
-
-        # Step 2: Check if we can enhance with semantic scoring
+        logger.info(f"Getting semantic recommendations for query: {query}")
+        
+        # Encode query using HF Space
         query_embedding = self.bert_processor.encode([query], force_semantic=True)[0]
         query_embedding = np.array(query_embedding, dtype=np.float32).reshape(1, -1)
 
-        # If we got real embeddings (not zeros), do semantic re-ranking
-        if not np.allclose(query_embedding, 0):
-            logger.info("Enhancing with semantic re-ranking")
-            return self._hybrid_rerank(query, keyword_results, query_embedding, top_k)
-
-        # Otherwise, return keyword results only
-        logger.info("Returning keyword-only results (semantic unavailable)")
-        return keyword_results[:top_k]
-
-    def _hybrid_rerank(self, query, keyword_results, query_embedding, top_k=8):
-        """Re-rank keyword results using semantic similarity for better quality"""
-        if not keyword_results:
-            return []
-
-        # Get movie IDs from keyword results
-        movie_ids = [r["movieId"] for r in keyword_results]
-
-        # Get indices of these movies in our dataset
-        indices = []
-        keyword_scores = {}
-        for i, result in enumerate(keyword_results):
-            movie_idx_list = self.movies.index[
-                self.movies["movieId"] == result["movieId"]
-            ].tolist()
-            if movie_idx_list:
-                idx = movie_idx_list[0]
-                indices.append(idx)
-                # Store normalized keyword score (0-1 range based on position)
-                keyword_scores[idx] = 1.0 - (i / len(keyword_results))
-
-        if not indices:
-            return keyword_results[:top_k]
-
-        # Get embeddings for these specific movies
+        # Get all movie embeddings
         embeddings = self.bert_processor._get_embeddings()
-        subset_embeddings = embeddings[indices]
-
-        # Ensure float32 (PCA outputs are already float32 from dimensionality reduction)
-        subset_embeddings = np.array(subset_embeddings, dtype=np.float32)
-
-        # Compute semantic similarities
-        similarities = cosine_similarity(query_embedding, subset_embeddings)[0]
-
-        # Blend scores: 70% semantic + 30% keyword
-        blended_scores = []
-        for i, idx in enumerate(indices):
-            semantic_score = float(similarities[i])
-            keyword_score = keyword_scores.get(idx, 0)
-            blended = 0.7 * semantic_score + 0.3 * keyword_score
-            blended_scores.append((idx, blended, semantic_score))
-
-        # Sort by blended score
-        blended_scores.sort(key=lambda x: x[1], reverse=True)
-
-        # Build final recommendations
-        recommendations = []
-        for idx, blended_score, semantic_score in blended_scores[:top_k]:
-            movie = self.movies.iloc[idx]
-            recommendations.append(
-                {
-                    "movieId": movie["movieId"],
-                    "title": movie["clean_title"],
-                    "year": movie.get("year", "Unknown"),
-                    "genres": movie.get("genres_list", []),
-                    "avg_rating": movie.get("avg_rating", 0),
-                    "similarity_score": semantic_score,  # Show semantic score
-                }
-            )
-
-        logger.info(
-            f"Hybrid re-ranking complete: returned {len(recommendations)} movies"
-        )
-        return recommendations
-
-    def recommend_similar_movies(self, movie_id, top_k=8):
-        movie_idx_list = self.movies.index[self.movies["movieId"] == movie_id].tolist()
-        if not movie_idx_list:
-            # Movie ID not found
-            return []
-        movie_idx = movie_idx_list[0]
-
-        # Get embeddings on-demand
-        embeddings = self.bert_processor._get_embeddings()
-
-        # Dequantize embeddings from uint8 to float32 for similarity computation
         embeddings = np.array(embeddings, dtype=np.float32)
-        if self.bert_processor.movie_embeddings.dtype == np.uint8:
-            # Dequantize: reverse the [0, 255] -> [-1, 1] scaling
-            # Formula: (value / 127.5) - 1
-            embeddings = (embeddings / 127.5) - 1
 
-        movie_embedding = embeddings[movie_idx].reshape(1, -1)
+        # Compute cosine similarity
+        logger.info("Computing semantic similarity scores")
+        similarities = cosine_similarity(query_embedding, embeddings)[0]
 
-        # Compute cosine similarities (cosine_similarity handles normalization internally)
-        similarities = cosine_similarity(movie_embedding, embeddings)[0]
+        # Get top K indices
+        top_indices = similarities.argsort()[::-1][:top_k]
 
-        # Sort similarities excluding the movie itself
-        sorted_indices = similarities.argsort()[::-1]
-        similar_indices = [
-            i for i in sorted_indices if i != movie_idx and 0 <= i < len(self.movies)
-        ][:top_k]
-
-        results = []
-        for idx in similar_indices:
-            if idx < 0 or idx >= len(self.movies):
-                continue
-            movie = self.movies.iloc[idx]
-            results.append(
-                {
-                    "movieId": movie["movieId"],
-                    "title": movie["clean_title"],
-                    "year": movie.get("year", "Unknown"),
-                    "genres": movie.get("genres_list", []),
-                    "avg_rating": movie.get("avg_rating", 0),
-                    "similarity_score": float(similarities[idx]),
-                }
-            )
-        return results
-
-    def _recommend_by_title_match(self, query, top_k=10):
-        """Fallback: recommend movies by matching query keywords in title/genres"""
-        query_lower = query.lower()
-        query_words = set(query_lower.split())
-
-        # Score movies based on keyword matches
-        scores = []
-        for idx, movie in self.movies.iterrows():
-            score = 0
-            title_lower = str(movie.get("clean_title", "")).lower()
-            genres = movie.get("genres_list", [])
-
-            # Title exact match
-            if query_lower in title_lower:
-                score += 10
-
-            # Title word matches
-            title_words = set(title_lower.split())
-            score += len(query_words & title_words) * 3
-
-            # Genre matches
-            genres_lower = [g.lower() for g in genres if isinstance(g, str)]
-            for word in query_words:
-                if any(word in genre for genre in genres_lower):
-                    score += 2
-
-            # Boost by rating
-            score += movie.get("avg_rating", 0) * 0.5
-
-            if score > 0:
-                scores.append((idx, score))
-
-        # Sort by score and return top_k
-        scores.sort(key=lambda x: x[1], reverse=True)
-        top_indices = [idx for idx, score in scores[:top_k]]
-
+        # Build recommendations
         recommendations = []
         for idx in top_indices:
             movie = self.movies.iloc[idx]
-            recommendations.append(
-                {
-                    "movieId": movie["movieId"],
-                    "title": movie["clean_title"],
-                    "year": movie.get("year", "Unknown"),
-                    "genres": movie.get("genres_list", []),
-                    "avg_rating": movie.get("avg_rating", 0),
-                    "similarity_score": 0.0,  # Not using embeddings
-                }
-            )
+            recommendations.append({
+                "movieId": movie["movieId"],
+                "title": movie["clean_title"],
+                "year": movie.get("year", "Unknown"),
+                "genres": movie.get("genres_list", []),
+                "avg_rating": movie.get("avg_rating", 0),
+                "similarity_score": float(similarities[idx]),
+            })
+
+        logger.info(f"Semantic ranking complete: returned {len(recommendations)} movies")
         return recommendations
 
     def search_movies(self, search_term, top_k=20):
