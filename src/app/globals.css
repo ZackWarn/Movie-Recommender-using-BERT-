@@ -3,7 +3,6 @@
 @tailwind components;
 @tailwind utilities;
 
-
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -29,17 +28,15 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Stagger animation for skeleton cards */
-@keyframes shimmerStagger {
+/* ============================================
+   SHIMMER ANIMATION - SLIDING GRADIENT EFFECT
+   ============================================ */
+@keyframes shimmer {
   0% {
-    opacity: 0.5;
-    animation-delay: inherit;
-  }
-  50% {
-    opacity: 1;
+    background-position: -1000px 0;
   }
   100% {
-    opacity: 0.5;
+    background-position: 1000px 0;
   }
 }
 
@@ -50,15 +47,13 @@ body {
     rgba(255, 255, 255, 0.16) 50%,
     rgba(255, 255, 255, 0.05) 100%
   );
-  background-size: 200% 100%;
-  animation: shimmer 1.4s ease-in-out infinite;
+  background-size: 1000px 100%;
+  animation: shimmer 2s ease-in-out infinite;
 }
 
-/* Pulse variation for heading */
-.animate-pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
+/* ============================================
+   PULSE ANIMATION - FADE IN/OUT EFFECT
+   ============================================ */
 @keyframes pulse {
   0%, 100% {
     opacity: 1;
@@ -68,3 +63,19 @@ body {
   }
 }
 
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Optional: Stagger animation for sequential cards */
+@keyframes shimmerStagger {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
