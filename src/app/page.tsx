@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { FiSearch } from "react-icons/fi";
 import MovieCard from "../components/MovieCard";
+import { SkeletonCard } from "./SkeletonCard";
 // Poster grid removed per request
 
 const FilmIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -166,30 +167,18 @@ export default function CineMatchHero() {
         )}
 
         {/* Loading skeletons while waiting for results */}
-        {loading && (
-          <div className="w-full">
-            <h2 className="text-white text-3xl font-bold text-center mb-8">
-              Finding movies...
-            </h2>
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-5">
-              {Array.from({ length: 8 }).map((_, idx) => (
-                <div
-                  key={idx}
-                  className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10 min-h-[220px]"
-                >
-                  <div className="h-5 w-3/4 rounded mb-2 shimmer" />
-                  <div className="h-4 w-1/2 rounded mb-3 shimmer" />
-                  <div className="flex gap-2 mb-3">
-                    {[0, 1, 2].map((pill) => (
-                      <div key={pill} className="h-6 w-16 rounded-full shimmer" />
-                    ))}
-                  </div>
-                  <div className="h-4 w-24 rounded shimmer" />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+{loading && (
+  <div className="w-full">
+    <h2 className="text-white text-3xl font-bold text-center mb-8 animate-pulse">
+      Finding movies...
+    </h2>
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
+      {Array.from({ length: 8 }).map((_, idx) => (
+        <SkeletonCard key={idx} />
+      ))}
+    </div>
+  </div>
+)}
 
         {/* Recommendations Section */}
         {recommendations.length > 0 && !loading && (
