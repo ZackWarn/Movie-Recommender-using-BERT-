@@ -8,6 +8,8 @@ from typing import List
 import psutil
 import gc
 
+from data_prep import normalize_title
+
 import numpy as np
 import pandas as pd
 from sentence_transformers import SentenceTransformer
@@ -280,7 +282,17 @@ class MovieBERTProcessor:
 
         # Store only the movie data, not embeddings
         self.movie_embeddings = None
-        self.movies_data = data["movies_data"]
+        self.movies_data = data["movies_data"].copy()
+
+        # Normalize titles (e.g., "Dark Knight, The" -> "The Dark Knight")
+        if "clean_title" in self.movies_data.columns:
+            self.movies_data["clean_title"] = self.movies_data["clean_title"].apply(
+                normalize_title
+            )
+        if "title" in self.movies_data.columns:
+            self.movies_data["title"] = self.movies_data["title"].apply(
+                normalize_title
+            )
 
         # Downcast numeric columns to save metadata memory
         for col in self.movies_data.columns:
